@@ -2,7 +2,7 @@
 
 **Weather That Comes From Somewhere.**
 
-<center><img src="https://i.imgur.com/oL3zGVu.gif" alt="Climora Banner" width="800px"></center>
+<center><img src="https://i.imgur.com/5Rs8xo8.png" alt="Climora Banner" width="800px"></center>
 
 > ⚠️ **EARLY DEVELOPMENT WARNING**
 >
