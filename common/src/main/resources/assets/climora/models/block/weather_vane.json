@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "climora:block/weather_vane",
+    "vane": "climora:block/weather_vane"
+  },
+  "elements": [
+    {
+      "from": [4, 0, 4],
+      "to": [12, 2, 12],
+      "faces": {
+        "down":  { "uv": [0, 8, 8, 16], "texture": "#vane", "cullface": "down" },
+        "up":    { "uv": [0, 8, 8, 16], "texture": "#vane" },
+        "north": { "uv": [0, 6, 8, 8], "texture": "#vane" },
+        "south": { "uv": [0, 6, 8, 8], "texture": "#vane" },
+        "west":  { "uv": [0, 6, 8, 8], "texture": "#vane" },
+        "east":  { "uv": [0, 6, 8, 8], "texture": "#vane" }
+      }
+    },
+    {
+      "from": [7, 2, 7],
+      "to": [9, 15, 9],
+      "faces": {
+        "up":    { "uv": [10, 0, 12, 2], "texture": "#vane" },
+        "north": { "uv": [10, 2, 12, 15], "texture": "#vane" },
+        "south": { "uv": [10, 2, 12, 15], "texture": "#vane" },
+        "west":  { "uv": [10, 2, 12, 15], "texture": "#vane" },
+        "east":  { "uv": [10, 2, 12, 15], "texture": "#vane" }
+      }
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "climora:block/weather_vane" }
+  }
+}

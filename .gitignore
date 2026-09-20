@@ -1,0 +1,51 @@
+# ================================
+# Climora (Architectury) — .gitignore
+# ================================
+
+# --- Gradle ---
+# Matches the root and every module (common/, fabric/, neoforge/)
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# --- Loom / Architectury caches ---
+.loom/
+.architectury-transformer/
+remappedSrc/
+
+# --- Dev run directories (worlds, logs, configs, crash reports) ---
+run/
+runs/
+
+# --- IntelliJ IDEA ---
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# --- Eclipse ---
+.classpath
+.project
+.settings/
+bin/
+
+# --- VS Code ---
+.vscode/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Build outputs and logs ---
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.log
+logs/
+crash-reports/
+
+# --- Local overrides (may contain paths or tokens) ---
+local.properties
+gradle.properties.local

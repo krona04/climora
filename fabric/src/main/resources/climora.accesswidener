@@ -1,0 +1,6 @@
+accessWidener v2 named
+
+# Biome downfall is the base humidity of a weather cell (see PlatformClimateImpl).
+# Fabric only: NeoForge requires this field to stay private and exposes getModifiedClimateSettings() instead.
+accessible class net/minecraft/world/level/biome/Biome$ClimateSettings
+accessible field net/minecraft/world/level/biome/Biome climateSettings Lnet/minecraft/world/level/biome/Biome$ClimateSettings;
