@@ -3,9 +3,12 @@ package net.krona.climora.client;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.krona.climora.climate.AtmosphereModel;
+import net.krona.climora.climate.AtmosphereModel;
 import net.krona.climora.climate.CellPos;
 import net.krona.climora.climate.ClimateModel;
+import net.krona.climora.climate.Microclimate;
 import net.krona.climora.climate.SimulationConstants;
+import net.krona.climora.config.ClimoraConfig;
 import net.krona.climora.network.LocalWeatherPayload;
 import net.krona.climora.weather.LocalWeather;
 import net.krona.climora.weather.SkyWeather;
@@ -32,6 +35,11 @@ public final class ClientWeather implements WeatherView, SkyWeather {
     private static final long TIMEOUT_MILLIS = 5000L;
     /** Precipitation at which the sky is as dark as in vanilla rain. */
     private static final float FULL_RAIN_LEVEL_PRECIPITATION = 0.6F;
+    /**
+     * A closed cloud deck greys the sky, hides the sun and dims the day like rain of this level does.
+     * Vanilla only greys the sky for rain, so drizzle under full overcast showed a blue horizon.
+     */
+    private static final float OVERCAST_SKY = 0.55F;
 
     private static final int TEMPERATURE = 0;
     private static final int ELEVATION = 1;
@@ -41,7 +49,12 @@ public final class ClientWeather implements WeatherView, SkyWeather {
     private static final int STORM = 5;
     private static final int WIND_X = 6;
     private static final int WIND_Z = 7;
-    private static final int FIELD_COUNT = 8;
+    private static final int COLUMN = 8;
+    private static final int HAIL = 9;
+    private static final int FOG = 10;
+    private static final int BASE_TEMPERATURE = 11;
+    private static final int BASE_AMPLITUDE = 12;
+    private static final int FIELD_COUNT = 13;
 
     private final Long2ObjectOpenHashMap<float[][]> cells = new Long2ObjectOpenHashMap<>();
     @Nullable
@@ -62,6 +75,8 @@ public final class ClientWeather implements WeatherView, SkyWeather {
     private float previousRainLevel;
     private float thunderLevel;
     private float previousThunderLevel;
+    private float overcast;
+    private float previousOvercast;
 
     private ClientWeather() {
     }
@@ -91,7 +106,8 @@ public final class ClientWeather implements WeatherView, SkyWeather {
                 long key = CellPos.key(payload.originX() + dx, payload.originZ() + dz);
                 received.add(key);
                 float[] target = {cell.temperature(), cell.elevation(), cell.humidity(), cell.cloudCover(),
-                        cell.precipitation(), cell.storm(), cell.windX(), cell.windZ()};
+                        cell.precipitation(), cell.storm(), cell.windX(), cell.windZ(), cell.columnTemperature(),
+                        cell.hail(), cell.fog(), cell.baseTemperature(), cell.baseAmplitude()};
                 float[][] values = cells.get(key);
                 if (values == null) {
                     cells.put(key, new float[][]{target.clone(), target});
@@ -122,6 +138,7 @@ public final class ClientWeather implements WeatherView, SkyWeather {
         level = null;
         size = 0;
         rainLevel = previousRainLevel = thunderLevel = previousThunderLevel = 0.0F;
+        overcast = previousOvercast = 0.0F;
         if (active) {
             active = false;
             LocalWeather.setClient(null, null);
@@ -149,7 +166,9 @@ public final class ClientWeather implements WeatherView, SkyWeather {
             float[] current = values[0];
             float[] target = values[1];
             for (int i = 0; i < FIELD_COUNT; i++) {
-                current[i] += (target[i] - current[i]) * EASING_PER_TICK;
+                // An unknown value (NaN) is taken over as it is, and a known one replaces it at once.
+                current[i] = Float.isNaN(target[i]) || Float.isNaN(current[i])
+                        ? target[i] : current[i] + (target[i] - current[i]) * EASING_PER_TICK;
             }
         }
 
@@ -163,6 +182,21 @@ public final class ClientWeather implements WeatherView, SkyWeather {
                 ? 0.0F : Mth.clamp(precipitation / FULL_RAIN_LEVEL_PRECIPITATION, 0.0F, 1.0F);
         rainLevel += (targetRain - rainLevel) * EASING_PER_TICK;
         thunderLevel += (storm(position.x, position.z) * rainLevel - thunderLevel) * EASING_PER_TICK;
+        previousOvercast = overcast;
+        float targetOvercast = OVERCAST_SKY * AtmosphereModel.smoothstep(0.55F, 1.0F, cloudCover(position.x, position.z));
+        overcast += (targetOvercast - overcast) * EASING_PER_TICK;
+    }
+
+    /**
+     * How grey the sky looks: the rain level, or the look of a closed cloud deck when that is greyer.
+     * Used where vanilla greys the sky, the fog and the clouds and dims the sun for rain; everything else
+     * keeps the plain rain level.
+     */
+    public float skyGreyness(float rainLevel, float partialTick) {
+        if (!active || !ClimoraConfig.client().dynamicClouds) {
+            return rainLevel;
+        }
+        return Math.max(rainLevel, Mth.lerp(partialTick, previousOvercast, overcast));
     }
 
     @Override
@@ -186,13 +220,59 @@ public final class ClientWeather implements WeatherView, SkyWeather {
     }
 
     @Override
+    public float hail(double x, double z) {
+        return value(x, z, HAIL, 0.0F);
+    }
+
+    @Override
+    public float columnTemperature(double x, double y, double z) {
+        float column = value(x, z, COLUMN, Float.NaN);
+        if (Float.isNaN(column)) {
+            return Float.NaN;
+        }
+        float elevation = value(x, z, ELEVATION, Float.NaN);
+        float atHeight = Float.isNaN(elevation) ? column : column + ClimateModel.altitudeOffset(elevation, (float) y);
+        return atHeight + microclimate(x, y, z, elevation);
+    }
+
+    /** Strongest precipitation in any cell the client knows, 0..1: a cheap check whether it rains anywhere in view. */
+    public float maxPrecipitation() {
+        float max = 0.0F;
+        for (float[][] values : cells.values()) {
+            max = Math.max(max, values[0][PRECIPITATION]);
+        }
+        return max;
+    }
+
+    /** Radiation fog near the ground, 0..1. */
+    public float fog(double x, double z) {
+        return value(x, z, FOG, 0.0F);
+    }
+
+    /** Terrain height the server sampled for the cells around a position, or NaN if unknown. */
+    public float elevation(double x, double z) {
+        return value(x, z, ELEVATION, Float.NaN);
+    }
+
+    @Override
     public float airTemperature(double x, double y, double z) {
         float surface = value(x, z, TEMPERATURE, Float.NaN);
         if (Float.isNaN(surface)) {
             return Float.NaN;
         }
         float elevation = value(x, z, ELEVATION, Float.NaN);
-        return Float.isNaN(elevation) ? surface : surface + ClimateModel.altitudeOffset(elevation, (float) y);
+        float atHeight = Float.isNaN(elevation) ? surface : surface + ClimateModel.altitudeOffset(elevation, (float) y);
+        return atHeight + microclimate(x, y, z, elevation);
+    }
+
+    /** The same biome correction as on the server, so snow and rain fall where the server says. */
+    private float microclimate(double x, double y, double z, float elevation) {
+        ClientLevel current = level;
+        if (current == null) {
+            return 0.0F;
+        }
+        return Microclimate.offset(current, x, y, z, value(x, z, BASE_TEMPERATURE, Float.NaN),
+                value(x, z, BASE_AMPLITUDE, Float.NaN), elevation, value(x, z, CLOUD, 0.0F), current.getDayTime());
     }
 
     public float cloudCover(double x, double z) {

@@ -72,6 +72,46 @@ class AtmosphereModelTest {
     }
 
     @Test
+    void rainThroughWarmAirOntoFrozenGroundFreezes() {
+        assertEquals(AtmosphereModel.PrecipitationType.FREEZING_RAIN, AtmosphereModel.precipitationType(-2.0F, 5.0F));
+        assertEquals(AtmosphereModel.PrecipitationType.SNOW, AtmosphereModel.precipitationType(-2.0F, 1.0F),
+                "air aloft too cold to melt the snow");
+        assertEquals(AtmosphereModel.PrecipitationType.SNOW, AtmosphereModel.precipitationType(-2.0F, Float.NaN),
+                "unknown air aloft: plain snow");
+        assertEquals(AtmosphereModel.PrecipitationType.SLEET, AtmosphereModel.precipitationType(1.0F, 8.0F));
+        assertEquals(AtmosphereModel.PrecipitationType.RAIN, AtmosphereModel.precipitationType(3.0F, 8.0F));
+        assertTrue(AtmosphereModel.PrecipitationType.FREEZING_RAIN.isLiquid());
+        assertTrue(!AtmosphereModel.PrecipitationType.SNOW.isLiquid() && !AtmosphereModel.PrecipitationType.NONE.isLiquid());
+    }
+
+    @Test
+    void hailNeedsAStrongStormStrongLiftAndAirAboveFreezing() {
+        assertEquals(AtmosphereModel.HAIL_MAX, AtmosphereModel.hailTarget(1.0F, 1.0F, 20.0F), EPSILON);
+        assertEquals(0.0F, AtmosphereModel.hailTarget(0.5F, 1.0F, 20.0F), EPSILON, "ordinary thunderstorm");
+        assertEquals(0.0F, AtmosphereModel.hailTarget(1.0F, 0.4F, 20.0F), EPSILON, "weak updraft");
+        assertEquals(0.0F, AtmosphereModel.hailTarget(1.0F, 1.0F, 2.0F), EPSILON, "near freezing: graupel");
+        assertTrue(AtmosphereModel.hailTarget(1.0F, 1.0F, 10.0F) > 0.7F, "a cool spring storm still hails");
+    }
+
+    @Test
+    void radiationFogNeedsExcessWaterStillAirAndAClearSky() {
+        assertEquals(1.0F, AtmosphereModel.fog(1.3F, 0.5F, 0.1F, 0.0F), EPSILON);
+        assertEquals(0.0F, AtmosphereModel.fog(1.0F, 0.5F, 0.1F, 0.0F), EPSILON, "no excess water");
+        assertEquals(0.0F, AtmosphereModel.fog(1.3F, 8.0F, 0.1F, 0.0F), EPSILON, "wind mixes it away");
+        assertEquals(0.0F, AtmosphereModel.fog(1.3F, 0.5F, 1.0F, 0.0F), EPSILON, "clouds keep the ground warm");
+        assertEquals(0.0F, AtmosphereModel.fog(1.3F, 0.5F, 0.1F, 0.5F), EPSILON, "rain washes it out");
+    }
+
+    @Test
+    void groundDriesFastInWarmWindyAirAndHardlyWhenFrozen() {
+        float mild = AtmosphereModel.dryingTime(15.0F, 0.6F, 3.0F);
+        assertTrue(AtmosphereModel.dryingTime(30.0F, 0.3F, 8.0F) < mild / 2.0F);
+        assertTrue(AtmosphereModel.dryingTime(-5.0F, 0.9F, 0.0F) > AtmosphereModel.DRYING_TIME_TICKS * 2.0F);
+        assertEquals(0.0F, AtmosphereModel.wetnessTarget(0.0F), EPSILON);
+        assertEquals(1.0F, AtmosphereModel.wetnessTarget(0.75F), EPSILON);
+    }
+
+    @Test
     void precipitationTypeFollowsTemperature() {
         assertEquals(AtmosphereModel.PrecipitationType.SNOW, AtmosphereModel.precipitationType(-5.0F));
         assertEquals(AtmosphereModel.PrecipitationType.SNOW, AtmosphereModel.precipitationType(0.0F));

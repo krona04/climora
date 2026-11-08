@@ -60,10 +60,15 @@ public final class ClimateModel {
      * inactive for a long time catch up in a single step.
      */
     public static float relax(float current, float target, long elapsedTicks, float timeConstantTicks) {
-        if (elapsedTicks <= 0) {
+        return relax(current, target, (double) elapsedTicks, timeConstantTicks);
+    }
+
+    /** Same as {@link #relax(float, float, long, float)} for a step in weather time, which is not whole ticks. */
+    public static float relax(float current, float target, double elapsedTicks, float timeConstantTicks) {
+        if (elapsedTicks <= 0.0) {
             return current;
         }
-        double blend = 1.0 - Math.exp(-elapsedTicks / (double) timeConstantTicks);
+        double blend = 1.0 - Math.exp(-elapsedTicks / timeConstantTicks);
         return (float) (current + (target - current) * blend);
     }
 

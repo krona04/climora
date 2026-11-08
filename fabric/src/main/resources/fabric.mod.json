@@ -8,7 +8,9 @@
     "Krona04"
   ],
   "contact": {
-    "homepage": ""
+    "homepage": "https://modrinth.com/user/Krona_04",
+    "sources": "https://github.com/krona04/climora",
+    "issues": "https://github.com/krona04/climora/issues"
   },
   "license": "MIT",
   "icon": "logo.png",

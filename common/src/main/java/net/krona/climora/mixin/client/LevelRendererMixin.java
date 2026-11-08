@@ -1,10 +1,14 @@
 package net.krona.climora.mixin.client;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.krona.climora.client.ClientWeather;
 import net.krona.climora.client.CloudRenderer;
 import net.krona.climora.client.PrecipitationRenderer;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import org.joml.Matrix4f;
@@ -42,6 +46,12 @@ abstract class LevelRendererMixin {
             ci.cancel();
             PrecipitationRenderer.tick(minecraft, camera, ticks);
         }
+    }
+
+    /** The sun, moon and stars fade behind a closed cloud deck, as they do in rain. */
+    @WrapOperation(method = "renderSky", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/ClientLevel;getRainLevel(F)F"))
+    private float climora$overcastHidesTheSun(ClientLevel level, float partialTick, Operation<Float> original) {
+        return ClientWeather.INSTANCE.skyGreyness(original.call(level, partialTick), partialTick);
     }
 
     @Inject(method = "renderClouds", at = @At("HEAD"), cancellable = true)

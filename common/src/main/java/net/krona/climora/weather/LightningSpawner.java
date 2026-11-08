@@ -27,7 +27,8 @@ import java.util.Optional;
 public final class LightningSpawner {
     /** Strike chance per tick in a cell with a full-intensity storm: about one strike every 12 seconds. */
     private static final float STRIKE_CHANCE_AT_FULL_STORM = 1.0F / 240.0F;
-    private static final float MIN_STORM = 0.15F;
+    /** Below this storm intensity there is no lightning, and it does not count as a thunderstorm. */
+    public static final float MIN_STORM = 0.15F;
     private static final int LIGHTNING_ROD_RANGE = 128;
 
     private final ServerLevel level;

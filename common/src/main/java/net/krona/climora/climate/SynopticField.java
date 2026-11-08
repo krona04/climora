@@ -4,7 +4,8 @@ package net.krona.climora.climate;
  * Large-scale weather systems: areas of high and low pressure a couple of kilometres wide that
  * drift with the prevailing wind and slowly change shape.
  * <p>
- * The field is a pure function of position, game time and world seed. It needs no saved state,
+ * The field is a pure function of position, weather time and world seed. Weather time is game time
+ * scaled by {@code weatherSpeed} and kept in the saved grid; the field itself needs no saved state,
  * covers infinite worlds and is the same for inactive and active cells.
  */
 public final class SynopticField {
@@ -36,26 +37,26 @@ public final class SynopticField {
         this.driftZ = Math.sin(angle);
     }
 
-    /** How far the weather systems have moved since game time 0, blocks. X component. */
-    public double driftOffsetX(long gameTime) {
-        return driftX * DRIFT_SPEED * gameTime - driftZ * wobble(gameTime);
+    /** How far the weather systems have moved since weather time 0, blocks. X component. */
+    public double driftOffsetX(double weatherTime) {
+        return driftX * DRIFT_SPEED * weatherTime - driftZ * wobble(weatherTime);
     }
 
-    /** How far the weather systems have moved since game time 0, blocks. Z component. */
-    public double driftOffsetZ(long gameTime) {
-        return driftZ * DRIFT_SPEED * gameTime + driftX * wobble(gameTime);
+    /** How far the weather systems have moved since weather time 0, blocks. Z component. */
+    public double driftOffsetZ(double weatherTime) {
+        return driftZ * DRIFT_SPEED * weatherTime + driftX * wobble(weatherTime);
     }
 
-    private static double wobble(long gameTime) {
-        return WOBBLE_BLOCKS * Math.sin(gameTime * 2.0 * Math.PI / WOBBLE_PERIOD_TICKS);
+    private static double wobble(double weatherTime) {
+        return WOBBLE_BLOCKS * Math.sin(weatherTime * 2.0 * Math.PI / WOBBLE_PERIOD_TICKS);
     }
 
     /** Sea-level pressure of the weather systems at a position, hPa. */
-    public double pressure(double x, double z, long gameTime) {
+    public double pressure(double x, double z, double weatherTime) {
         // Move the pattern with the drift.
-        double px = x - driftOffsetX(gameTime);
-        double pz = z - driftOffsetZ(gameTime);
-        double time = gameTime / EVOLUTION_TICKS;
+        double px = x - driftOffsetX(weatherTime);
+        double pz = z - driftOffsetZ(weatherTime);
+        double time = weatherTime / EVOLUTION_TICKS;
 
         double value = noise.sample(px / SCALE_BLOCKS, pz / SCALE_BLOCKS, time)
                 + 0.5 * noise.sample(px / (SCALE_BLOCKS * 0.5), pz / (SCALE_BLOCKS * 0.5), time * 1.7 + 31.0);
@@ -63,19 +64,19 @@ public final class SynopticField {
         return SEA_LEVEL_PRESSURE + AMPLITUDE * clamp(value / 1.1, -1.0, 1.0);
     }
 
-    /** Velocity at which the pattern moves, blocks per tick. X component. */
-    public double driftVelocityX(long gameTime) {
-        return driftX * DRIFT_SPEED - driftZ * wobbleVelocity(gameTime);
+    /** Velocity at which the pattern moves, blocks per weather tick. X component. */
+    public double driftVelocityX(double weatherTime) {
+        return driftX * DRIFT_SPEED - driftZ * wobbleVelocity(weatherTime);
     }
 
-    /** Velocity at which the pattern moves, blocks per tick. Z component. */
-    public double driftVelocityZ(long gameTime) {
-        return driftZ * DRIFT_SPEED + driftX * wobbleVelocity(gameTime);
+    /** Velocity at which the pattern moves, blocks per weather tick. Z component. */
+    public double driftVelocityZ(double weatherTime) {
+        return driftZ * DRIFT_SPEED + driftX * wobbleVelocity(weatherTime);
     }
 
-    private static double wobbleVelocity(long gameTime) {
+    private static double wobbleVelocity(double weatherTime) {
         double omega = 2.0 * Math.PI / WOBBLE_PERIOD_TICKS;
-        return WOBBLE_BLOCKS * omega * Math.cos(gameTime * omega);
+        return WOBBLE_BLOCKS * omega * Math.cos(weatherTime * omega);
     }
 
     private static double clamp(double value, double min, double max) {

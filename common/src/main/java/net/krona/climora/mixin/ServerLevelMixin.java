@@ -59,13 +59,17 @@ abstract class ServerLevelMixin {
         return LocalWeather.shouldFreeze(level, view, pos);
     }
 
-    /** Warm air melts snow and ice, even in the dark. Vanilla only melts them in bright light. */
+    /**
+     * Warm air melts snow and ice, even in the dark (vanilla only melts them in bright light); freezing rain
+     * glazes the ground; puddles form, dry out and freeze over.
+     */
     @Inject(method = "tickPrecipitation", at = @At("TAIL"))
     private void climora$thaw(BlockPos pos, CallbackInfo ci) {
         ServerLevel level = (ServerLevel) (Object) this;
         WeatherView view = LocalWeather.view(level);
         if (view != null) {
             LocalWeather.tickThaw(level, view, pos);
+            LocalWeather.tickGround(level, view, pos);
         }
     }
 

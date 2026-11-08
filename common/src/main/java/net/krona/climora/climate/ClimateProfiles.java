@@ -56,17 +56,19 @@ public final class ClimateProfiles {
         put(Biomes.WINDSWEPT_GRAVELLY_HILLS, 6.0F, 10.0F, 0.45F, 110);
 
         // --- Tundra and ice ------------------------------------------------------------------
-        put(Biomes.SNOWY_TAIGA, -5.0F, 9.0F, 0.60F);
-        put(Biomes.SNOWY_PLAINS, -8.0F, 10.0F, 0.50F);
-        put(Biomes.ICE_SPIKES, -12.0F, 10.0F, 0.35F);
-        put(Biomes.SNOWY_BEACH, -3.0F, 7.0F, 0.65F);
-        put(Biomes.FROZEN_RIVER, -7.0F, 8.0F, 0.70F);
+        // Snow reflects most of the sunlight, so snow-covered ground hardly warms by day: a small day/night
+        // swing that keeps the warmest hour below freezing. With the swing of bare ground they thawed at noon.
+        put(Biomes.SNOWY_TAIGA, -7.0F, 3.0F, 0.60F);
+        put(Biomes.SNOWY_PLAINS, -9.0F, 3.0F, 0.50F);
+        put(Biomes.ICE_SPIKES, -13.0F, 3.0F, 0.35F);
+        put(Biomes.SNOWY_BEACH, -5.0F, 2.5F, 0.65F);
+        put(Biomes.FROZEN_RIVER, -8.0F, 2.5F, 0.70F);
 
         // --- Mountains (temperature given at mountain height) --------------------------------
-        put(Biomes.GROVE, -1.0F, 8.0F, 0.65F, 150);
-        put(Biomes.SNOWY_SLOPES, -6.0F, 8.0F, 0.60F, 170);
-        put(Biomes.JAGGED_PEAKS, -12.0F, 7.0F, 0.50F, 220);
-        put(Biomes.FROZEN_PEAKS, -14.0F, 7.0F, 0.55F, 220);
+        put(Biomes.GROVE, -5.0F, 3.0F, 0.65F, 150);
+        put(Biomes.SNOWY_SLOPES, -8.0F, 3.0F, 0.60F, 170);
+        put(Biomes.JAGGED_PEAKS, -12.0F, 3.0F, 0.50F, 220);
+        put(Biomes.FROZEN_PEAKS, -14.0F, 3.0F, 0.55F, 220);
         put(Biomes.STONY_PEAKS, 6.0F, 9.0F, 0.45F, 180);
 
         // --- Shores and rivers ---------------------------------------------------------------
@@ -82,8 +84,8 @@ public final class ClimateProfiles {
         put(Biomes.DEEP_OCEAN, 14.0F, 2.5F, 0.80F);
         put(Biomes.COLD_OCEAN, 7.0F, 2.5F, 0.75F);
         put(Biomes.DEEP_COLD_OCEAN, 6.0F, 2.5F, 0.75F);
-        put(Biomes.FROZEN_OCEAN, -4.0F, 3.0F, 0.65F);
-        put(Biomes.DEEP_FROZEN_OCEAN, -4.0F, 3.0F, 0.65F);
+        put(Biomes.FROZEN_OCEAN, -4.0F, 1.5F, 0.65F);
+        put(Biomes.DEEP_FROZEN_OCEAN, -4.0F, 1.5F, 0.65F);
 
         // --- Caves: sampled only when a cave biome reaches the surface -----------------------
         put(Biomes.LUSH_CAVES, 18.0F, 3.0F, 0.90F);

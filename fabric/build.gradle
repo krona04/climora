@@ -35,10 +35,39 @@ configurations {
         canBeResolved = true
         canBeConsumed = false
     }
+
+    // Production mod jars loaded as-is in development runs, see climoraRenderer below.
+    renderModsRaw {
+        canBeResolved = true
+        canBeConsumed = false
+        transitive = false
+    }
+}
+
+repositories {
+    maven {
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
 }
 
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+
+    // Rendering mods for compatibility checks, development runs only and never shipped:
+    // ./gradlew :fabric:runClient -PclimoraRenderer=sodium   (or =iris, which brings Sodium along)
+    def renderer = project.findProperty('climoraRenderer')
+    if (renderer == 'sodium' || renderer == 'iris') {
+        modLocalRuntime "maven.modrinth:sodium:$rootProject.sodium_version"
+    }
+    if (renderer == 'iris') {
+        modLocalRuntime "maven.modrinth:iris:$rootProject.iris_version"
+    }
+    // Sodium 0.8 is built with a newer Loom than ours can remap, so it is handed to Fabric Loader as a
+    // production jar instead; the loader remaps it at startup. -PclimoraRenderer=sodium8
+    if (renderer == 'sodium8') {
+        renderModsRaw "maven.modrinth:sodium:$rootProject.sodium8_version"
+    }
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
 
@@ -63,4 +92,13 @@ shadowJar {
 
 remapJar {
     input.set shadowJar.archiveFile
+}
+
+tasks.named('runClient') {
+    def raw = configurations.renderModsRaw
+    doFirst {
+        if (!raw.isEmpty()) {
+            jvmArgs "-Dfabric.addMods=${raw.files.join(File.pathSeparator)}"
+        }
+    }
 }

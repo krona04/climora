@@ -58,6 +58,11 @@ public final class CloudRenderer {
      * cloud colour during rain, so darkening them again here turns the sky into a black lid.
      */
     private static final float MIN_SHADE = 0.75F;
+    /**
+     * Seen from outside, the underside of a rain cloud is this much darker at full precipitation. Under the
+     * rain the game already darkens the cloud colour, so the extra shade fades out as the rain level rises.
+     */
+    private static final float RAIN_UNDERSIDE = 0.4F;
     /** Below this alpha a tile is not worth drawing. */
     private static final float MIN_ALPHA = 0.03F;
 
@@ -122,6 +127,17 @@ public final class CloudRenderer {
         }
 
         FogRenderer.levelFogColor();
+        // Clouds are drawn far past the render distance, where the terrain fog would leave only pale ghosts
+        // of them: the dark underside of a rain cloud a few hundred blocks away would never show. Let them
+        // fade into the haze towards the edge of the cloud range instead. Dense weather fog stays as it is.
+        float fogStart = RenderSystem.getShaderFogStart();
+        float fogEnd = RenderSystem.getShaderFogEnd();
+        int distance = renderDistance(minecraft);
+        boolean clearView = fogEnd >= minecraft.options.getEffectiveRenderDistance() * 16 * 0.9F;
+        if (clearView) {
+            RenderSystem.setShaderFogStart(Math.max(fogStart, distance * 0.45F));
+            RenderSystem.setShaderFogEnd(Math.max(fogEnd, distance * 1.1F));
+        }
         poseStack.pushPose();
         poseStack.mulPose(modelView);
         poseStack.translate(anchorX * TILE - patternX, cloudHeight - cameraY, anchorZ * TILE - patternZ);
@@ -141,6 +157,10 @@ public final class CloudRenderer {
         }
         RenderSystem.colorMask(true, true, true, true);
         renderType.clearRenderState();
+        if (clearView) {
+            RenderSystem.setShaderFogStart(fogStart);
+            RenderSystem.setShaderFogEnd(fogEnd);
+        }
         VertexBuffer.unbind();
         poseStack.popPose();
     }
@@ -154,7 +174,7 @@ public final class CloudRenderer {
     }
 
     /** How far clouds are drawn, blocks. 0 in the config means "follow the render distance". */
-    private static int renderDistance(Minecraft minecraft) {
+    static int renderDistance(Minecraft minecraft) {
         int configured = ClimoraConfig.client().cloudRenderDistance;
         if (configured > 0) {
             return configured;
@@ -169,7 +189,9 @@ public final class CloudRenderer {
         float[] bottoms = new float[side * side];
         float[] tops = new float[side * side];
         float[] shades = new float[side * side];
+        float[] underShades = new float[side * side];
         float[] alphas = new float[side * side];
+        float outside = 1.0F - weather.rainLevel(1.0F);
         double evolution = time / EVOLUTION_TICKS;
 
         // Weather is the same over hundreds of blocks, so it is sampled on a coarse grid and reused.
@@ -218,6 +240,7 @@ public final class CloudRenderer {
                 bottoms[index] = -RAIN_LOWERING * precipitation;
                 tops[index] = BASE_THICKNESS + bumps + (RAIN_THICKNESS * precipitation + STORM_THICKNESS * storm) * core;
                 shades[index] = Math.max(MIN_SHADE, 1.0F - 0.15F * precipitation - 0.10F * storm);
+                underShades[index] = shades[index] * (1.0F - RAIN_UNDERSIDE * precipitation * outside);
                 alphas[index] = alpha;
             }
         }
@@ -237,6 +260,8 @@ public final class CloudRenderer {
                 }
                 float bottom = bottoms[index];
                 float shade = shades[index];
+                float underShade = underShades[index];
+                float sideShade = (shade + underShade) * 0.5F;
                 float alpha = alphas[index];
                 float x0 = (dx - radius) * TILE;
                 float z0 = (dz - radius) * TILE;
@@ -245,12 +270,12 @@ public final class CloudRenderer {
 
                 quad(builder, x0, top, z0, x0, top, z1, x1, top, z1, x1, top, z0, r, g, b, shade, alpha, TOP_TINT, 0, 1, 0);
                 quad(builder, x0, bottom, z0, x1, bottom, z0, x1, bottom, z1, x0, bottom, z1,
-                        r, g, b, shade, alpha, BOTTOM_TINT, 0, -1, 0);
+                        r, g, b, underShade, alpha, BOTTOM_TINT, 0, -1, 0);
 
-                sides(builder, tops, bottoms, side, dx - 1, dz, x0, z0, x0, z1, bottom, top, r, g, b, shade, alpha, SIDE_X_TINT, -1, 0);
-                sides(builder, tops, bottoms, side, dx + 1, dz, x1, z1, x1, z0, bottom, top, r, g, b, shade, alpha, SIDE_X_TINT, 1, 0);
-                sides(builder, tops, bottoms, side, dx, dz - 1, x1, z0, x0, z0, bottom, top, r, g, b, shade, alpha, SIDE_Z_TINT, 0, -1);
-                sides(builder, tops, bottoms, side, dx, dz + 1, x0, z1, x1, z1, bottom, top, r, g, b, shade, alpha, SIDE_Z_TINT, 0, 1);
+                sides(builder, tops, bottoms, side, dx - 1, dz, x0, z0, x0, z1, bottom, top, r, g, b, sideShade, alpha, SIDE_X_TINT, -1, 0);
+                sides(builder, tops, bottoms, side, dx + 1, dz, x1, z1, x1, z0, bottom, top, r, g, b, sideShade, alpha, SIDE_X_TINT, 1, 0);
+                sides(builder, tops, bottoms, side, dx, dz - 1, x1, z0, x0, z0, bottom, top, r, g, b, sideShade, alpha, SIDE_Z_TINT, 0, -1);
+                sides(builder, tops, bottoms, side, dx, dz + 1, x0, z1, x1, z1, bottom, top, r, g, b, sideShade, alpha, SIDE_Z_TINT, 0, 1);
             }
         }
 

@@ -12,6 +12,7 @@ import net.krona.climora.climate.ClimateGrid;
 import net.krona.climora.climate.ClimateInterpolation;
 import net.krona.climora.climate.ClimateManager;
 import net.krona.climora.climate.ClimateSimulation;
+import net.krona.climora.climate.Forecast;
 import net.krona.climora.climate.SimulationConstants;
 import net.krona.climora.climate.SimulationStats;
 import net.krona.climora.climate.WeatherOverride;
@@ -23,8 +24,10 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -32,11 +35,16 @@ import java.util.Locale;
  * <ul>
  *     <li>{@code temperature [pos]} — air temperature and weather at a position</li>
  *     <li>{@code cell [pos]} — full state of the weather cell at a position</li>
- *     <li>{@code weather clear|cloudy|rain|storm [radius] [seconds]} — force weather around you; {@code weather auto} ends it</li>
- *     <li>{@code stats} — simulation performance</li>
+ *     <li>{@code forecast [pos]} — what the weather will do in the next hours</li>
+ *     <li>{@code weather clear|cloudy|drizzle|rain|downpour|storm|freezing_rain [radius] [seconds]} — force
+ *     weather around you; {@code weather auto} ends it</li>
+ *     <li>{@code stats} — simulation performance and how often it rains</li>
  *     <li>{@code stress <radius>} — simulate extra cells around players for load tests, 0 to stop</li>
+ *     <li>{@code resample [radius]} — build cells from the terrain again</li>
  *     <li>{@code reload} — reload {@code config/climora.json}</li>
  * </ul>
+ * Every message is a translation key ({@code commands.climora.*}), so players read it in their language.
+ * Numbers are formatted here, the same in every language.
  */
 public final class ClimoraCommand {
     private static final String ARG_POS = "pos";
@@ -48,12 +56,19 @@ public final class ClimoraCommand {
     private static final int VANILLA_WEATHER_RADIUS = 32;
     /** Vanilla /weather without a duration lasts a random 10-20 minutes; use 15. */
     private static final int VANILLA_DEFAULT_TICKS = 18000;
+    private static final String PREFIX = "commands.climora.";
 
     private ClimoraCommand() {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context,
                                 Commands.CommandSelection selection) {
+        LiteralArgumentBuilder<CommandSourceStack> weather = Commands.literal("weather");
+        for (WeatherOverride.Mode mode : WeatherOverride.Mode.values()) {
+            weather.then(overrideCommand(mode.name().toLowerCase(Locale.ROOT), mode));
+        }
+        weather.then(Commands.literal("auto").executes(ctx -> clearOverrides(ctx.getSource())));
+
         dispatcher.register(Commands.literal(Climora.MOD_ID)
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("temperature")
@@ -64,12 +79,11 @@ public final class ClimoraCommand {
                         .executes(ctx -> showCell(ctx.getSource(), sourcePos(ctx)))
                         .then(Commands.argument(ARG_POS, BlockPosArgument.blockPos())
                                 .executes(ctx -> showCell(ctx.getSource(), BlockPosArgument.getBlockPos(ctx, ARG_POS)))))
-                .then(Commands.literal("weather")
-                        .then(overrideCommand("clear", WeatherOverride.Mode.CLEAR))
-                        .then(overrideCommand("cloudy", WeatherOverride.Mode.CLOUDY))
-                        .then(overrideCommand("rain", WeatherOverride.Mode.RAIN))
-                        .then(overrideCommand("storm", WeatherOverride.Mode.STORM))
-                        .then(Commands.literal("auto").executes(ctx -> clearOverrides(ctx.getSource()))))
+                .then(Commands.literal("forecast")
+                        .executes(ctx -> showForecast(ctx.getSource(), sourcePos(ctx)))
+                        .then(Commands.argument(ARG_POS, BlockPosArgument.blockPos())
+                                .executes(ctx -> showForecast(ctx.getSource(), BlockPosArgument.getBlockPos(ctx, ARG_POS)))))
+                .then(weather)
                 .then(Commands.literal("stats").executes(ctx -> showStats(ctx.getSource())))
                 .then(Commands.literal("stress")
                         .then(Commands.argument(ARG_RADIUS, IntegerArgumentType.integer(0, 8))
@@ -131,8 +145,7 @@ public final class ClimoraCommand {
         int cellZ = CellPos.blockToCell(pos.getZ());
         simulation.addOverride(new WeatherOverride(mode, cellX, cellZ, radius, source.getLevel().getGameTime() + ticks));
         int blocks = (radius * 2 + 1) * SimulationConstants.CELL_SIZE_BLOCKS;
-        send(source, format("Weather set to %s in %dx%d blocks around you for %d s. Use /climora weather auto to end it.",
-                mode.name().toLowerCase(Locale.ROOT), blocks, blocks, ticks / 20), true);
+        send(source, tr("weather.set", modeName(mode), blocks, blocks, ticks / 20), true);
     }
 
     private static int clearOverrides(CommandSourceStack source) {
@@ -142,7 +155,7 @@ public final class ClimoraCommand {
         }
         BlockPos pos = BlockPos.containing(source.getPosition());
         int removed = simulation.clearOverrides(CellPos.blockToCell(pos.getX()), CellPos.blockToCell(pos.getZ()));
-        send(source, format("Removed %d weather override(s) here. The simulation takes over again.", removed), true);
+        send(source, tr("weather.auto", removed), true);
         return removed;
     }
 
@@ -154,23 +167,21 @@ public final class ClimoraCommand {
 
         ClimateInterpolation.Sample sample = simulation.sample(pos.getX() + 0.5, pos.getZ() + 0.5);
         if (sample == null) {
-            source.sendFailure(Component.literal(format(
-                    "No weather cells near %d %d %d yet. Cells are created around players.", pos.getX(), pos.getY(), pos.getZ())));
+            source.sendFailure(tr("no_cells", pos.getX(), pos.getY(), pos.getZ()));
             return 0;
         }
 
-        send(source, format("Air at %d %d %d: %.1f °C, %s", pos.getX(), pos.getY(), pos.getZ(),
-                sample.airTemperature(pos.getY()), describePrecipitation(sample, pos.getY())), false);
+        send(source, tr("temperature.air", pos.getX(), pos.getY(), pos.getZ(),
+                number("%.1f", simulation.airTemperature(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5)),
+                describePrecipitation(simulation, sample, pos)), false);
         if (Float.isNaN(sample.surfaceElevation())) {
-            send(source, format("Surface: %.1f °C (elevation unknown, from %d cells)",
-                    sample.surfaceTemperature(), sample.cellCount()), false);
+            send(source, tr("temperature.surface_unknown", number("%.1f", sample.surfaceTemperature()), sample.cellCount()), false);
         } else {
-            send(source, format("Surface: %.1f °C at Y %.0f (from %d cells)",
-                    sample.surfaceTemperature(), sample.surfaceElevation(), sample.cellCount()), false);
+            send(source, tr("temperature.surface", number("%.1f", sample.surfaceTemperature()),
+                    number("%.0f", sample.surfaceElevation()), sample.cellCount()), false);
         }
-        send(source, format("Pressure %.0f hPa, humidity %.0f%%, clouds %.0f%%, %s",
-                sample.pressure(), sample.relativeHumidity() * 100, sample.cloudCover() * 100,
-                describeWind(sample.windX(), sample.windZ())), false);
+        send(source, tr("temperature.air_state", number("%.0f", sample.pressure()), percent(sample.relativeHumidity()),
+                percent(sample.cloudCover()), describeWind(sample.windX(), sample.windZ())), false);
         return 1;
     }
 
@@ -184,30 +195,61 @@ public final class ClimoraCommand {
         int cellZ = CellPos.blockToCell(pos.getZ());
         ClimateCell cell = simulation.grid().get(CellPos.key(cellX, cellZ));
         if (cell == null) {
-            source.sendFailure(Component.literal(format("Cell (%d, %d) is not created yet.", cellX, cellZ)));
+            source.sendFailure(tr("cell.missing", cellX, cellZ));
             return 0;
         }
 
         int size = SimulationConstants.CELL_SIZE_BLOCKS;
         long age = source.getLevel().getGameTime() - cell.lastUpdateTick();
-        send(source, format("Cell (%d, %d): blocks x %d..%d, z %d..%d, updated %d ticks ago",
-                cellX, cellZ, CellPos.minBlock(cellX), CellPos.minBlock(cellX) + size - 1,
+        send(source, tr("cell.area", cellX, cellZ, CellPos.minBlock(cellX), CellPos.minBlock(cellX) + size - 1,
                 CellPos.minBlock(cellZ), CellPos.minBlock(cellZ) + size - 1, age), false);
-        send(source, format("Temperature %.1f °C (target %.1f °C, daily mean %.1f °C, day/night ±%.1f °C), elevation %s",
-                cell.temperature(), simulation.targetTemperature(cell), cell.baseTemperature(), cell.baseAmplitude(),
-                cell.hasElevation() ? "Y " + cell.elevation() : "unknown"), false);
-        send(source, format("Pressure %.1f hPa (lift %.2f), humidity %.0f%%, moisture %.1f g/kg",
-                cell.pressure(), AtmosphereModel.lift(cell.pressure()), cell.relativeHumidity() * 100, cell.moisture()), false);
-        send(source, format("Clouds %.0f%%, precipitation %.0f%%, storm %.0f%%, %s",
-                cell.cloudCover() * 100, cell.precipitation() * 100, cell.storm() * 100,
-                describeWind(cell.windX(), cell.windZ())), false);
-        send(source, format("Biome humidity %.2f, water %.0f%%", cell.baseHumidity(), cell.waterFraction() * 100), false);
+        send(source, tr("cell.temperature", number("%.1f", cell.temperature()), number("%.1f", simulation.targetTemperature(cell)),
+                number("%.1f", cell.baseTemperature()), number("%.1f", cell.baseAmplitude()),
+                cell.hasElevation() ? tr("cell.elevation", cell.elevation()) : tr("cell.elevation_unknown")), false);
+        send(source, tr("cell.air", number("%.1f", cell.pressure()), number("%.2f", AtmosphereModel.lift(cell.pressure())),
+                percent(cell.relativeHumidity()), number("%.1f", cell.moisture())), false);
+        send(source, tr("cell.weather", percent(cell.cloudCover()), percent(cell.precipitation()), percent(cell.storm()),
+                percent(cell.hail()), describeWind(cell.windX(), cell.windZ())), false);
+        send(source, tr("cell.ground", Float.isNaN(cell.columnTemperature()) ? "?" : number("%.1f", cell.columnTemperature()),
+                percent(cell.wetness()), percent(cell.fog())), false);
+        send(source, tr("cell.biome", number("%.2f", cell.baseHumidity()), percent(cell.waterFraction())), false);
         WeatherOverride override = simulation.overrideAt(cellX, cellZ);
         if (override != null) {
-            send(source, format("Forced weather: %s for %d more seconds", override.mode().name().toLowerCase(Locale.ROOT),
+            send(source, tr("cell.forced", modeName(override.mode()),
                     (override.untilTick() - source.getLevel().getGameTime()) / 20), false);
         }
         return 1;
+    }
+
+    private static int showForecast(CommandSourceStack source, BlockPos pos) {
+        ClimateSimulation simulation = requireSimulation(source);
+        if (simulation == null) {
+            return 0;
+        }
+        List<Forecast.Entry> entries = Forecast.forecast(simulation, pos);
+        if (entries.isEmpty()) {
+            source.sendFailure(tr("no_cells", pos.getX(), pos.getY(), pos.getZ()));
+            return 0;
+        }
+        send(source, tr("forecast.header", pos.getX(), pos.getZ()), false);
+        float nowPressure = entries.get(0).pressure();
+        for (Forecast.Entry entry : entries) {
+            MutableComponent when = entry.hours() == 0 ? tr("forecast.now") : tr("forecast.in", entry.hours());
+            String trend = entry.hours() == 0 ? "" : entry.pressure() > nowPressure + 1.5F ? " ↑"
+                    : entry.pressure() < nowPressure - 1.5F ? " ↓" : " →";
+            MutableComponent line = tr("forecast.line", when, number("%.0f", entry.pressure()), trend,
+                    tr("forecast.sky." + entry.sky().name().toLowerCase(Locale.ROOT)));
+            if (entry.precipitation() != Forecast.Chance.NONE) {
+                line.append(", ").append(tr("forecast.precipitation." + entry.precipitation().name().toLowerCase(Locale.ROOT),
+                        precipitationName(entry.type())));
+            }
+            if (entry.thunderstorms()) {
+                line.append(", ").append(tr("forecast.thunderstorms"));
+            }
+            send(source, line, false);
+        }
+        send(source, tr("forecast.note"), false);
+        return entries.size();
     }
 
     private static int showStats(CommandSourceStack source) {
@@ -217,19 +259,17 @@ public final class ClimoraCommand {
         }
 
         SimulationStats stats = simulation.stats();
-        send(source, format("Climate of %s (data version %d, local weather %s)",
-                source.getLevel().dimension().location(), ClimateGrid.DATA_VERSION,
-                ClimoraConfig.server().localWeather ? "on" : "off"), false);
-        send(source, format("Cells: %d stored, %d active, %d pending, %d queued for re-sampling%s",
-                simulation.grid().size(), simulation.activeCellCount(), simulation.pendingCellCount(),
-                simulation.pendingResampleCount(),
-                simulation.stressRadius() > 0 ? ", stress radius +" + simulation.stressRadius() : ""), false);
-        send(source, format("Tick time (last %d ticks): avg %.3f ms, max %.3f ms",
-                SimulationStats.WINDOW_TICKS, stats.averageTickMillis(), stats.maxTickMillis()), false);
-        send(source, format("Updates: %.1f cells/s, %d sampled, %d deferred, %d ticks over budget",
-                stats.updatesPerSecond(), stats.cellsCreatedTotal(), stats.deferredUpdatesTotal(),
-                stats.overBudgetTicksTotal()), false);
-        send(source, format("Lightning strikes: %d", stats.lightningStrikesTotal()), false);
+        ClimoraConfig.Server config = ClimoraConfig.server();
+        send(source, tr("stats.header", source.getLevel().dimension().location().toString(), ClimateGrid.DATA_VERSION,
+                tr(config.localWeather ? "on" : "off"), number("%.2f", config.weatherSpeed)), false);
+        send(source, tr("stats.cells", simulation.grid().size(), simulation.activeCellCount(), simulation.pendingCellCount(),
+                simulation.pendingResampleCount(), simulation.stressRadius()), false);
+        send(source, tr("stats.time", SimulationStats.WINDOW_TICKS, number("%.3f", stats.averageTickMillis()),
+                number("%.3f", stats.maxTickMillis())), false);
+        send(source, tr("stats.updates", number("%.1f", stats.updatesPerSecond()), stats.cellsCreatedTotal(),
+                stats.deferredUpdatesTotal(), stats.overBudgetTicksTotal()), false);
+        send(source, tr("stats.weather", share(stats.rainShare()), share(stats.stormShare()), share(stats.hailShare()),
+                share(stats.freezingRainShare()), stats.lightningStrikesTotal()), false);
         return 1;
     }
 
@@ -240,9 +280,7 @@ public final class ClimoraCommand {
         }
         simulation.setStressRadius(radius);
         int side = (ClimoraConfig.server().activeRadiusCells + radius) * 2 + 1;
-        send(source, radius == 0
-                ? "Stress test stopped."
-                : format("Stress test: %dx%d cells around every player. Watch /climora stats.", side, side), true);
+        send(source, radius == 0 ? tr("stress.stopped") : tr("stress.started", side, side), true);
         return 1;
     }
 
@@ -253,54 +291,81 @@ public final class ClimoraCommand {
         }
         BlockPos pos = BlockPos.containing(source.getPosition());
         int queued = simulation.requestResample(CellPos.blockToCell(pos.getX()), CellPos.blockToCell(pos.getZ()), radius);
-        send(source, format("Queued %d cells to be built from the terrain again (use after changing biomes).", queued), true);
+        send(source, tr("resample", queued), true);
         return queued;
     }
 
     private static int reload(CommandSourceStack source) {
         ClimoraConfig.loadServer();
-        send(source, "Reloaded config/climora.json.", true);
+        send(source, tr("reload"), true);
         return 1;
     }
 
-    private static String describePrecipitation(ClimateInterpolation.Sample sample, double y) {
+    private static MutableComponent describePrecipitation(ClimateSimulation simulation, ClimateInterpolation.Sample sample, BlockPos pos) {
         if (sample.precipitation() < LocalWeather.PRECIPITATION_THRESHOLD) {
-            return "no precipitation";
+            return tr("precipitation.none");
         }
-        String type = sample.precipitationType(y).name().toLowerCase(Locale.ROOT);
-        return format("%s %.0f%%%s", type, sample.precipitation() * 100, sample.storm() > 0.15F ? " with thunderstorm" : "");
+        AtmosphereModel.PrecipitationType type = LocalWeather.precipitationType(simulation, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        MutableComponent text = tr("precipitation.amount", precipitationName(type), percent(sample.precipitation()));
+        if (sample.hail() >= ClimateSimulation.HAIL_THRESHOLD) {
+            text.append(", ").append(tr("precipitation.hail"));
+        }
+        if (sample.storm() >= LocalWeather.THUNDERSTORM) {
+            text.append(", ").append(tr("precipitation.thunderstorm"));
+        }
+        return text;
     }
 
-    static String describeWind(float windX, float windZ) {
+    static MutableComponent precipitationName(AtmosphereModel.PrecipitationType type) {
+        return Component.translatable("climora.precipitation." + type.name().toLowerCase(Locale.ROOT));
+    }
+
+    static MutableComponent modeName(WeatherOverride.Mode mode) {
+        return Component.translatable("climora.weather_mode." + mode.name().toLowerCase(Locale.ROOT));
+    }
+
+    static MutableComponent describeWind(float windX, float windZ) {
         float speed = (float) Math.sqrt(windX * windX + windZ * windZ);
-        return format("wind %.1f m/s from %s (Beaufort %.0f)", speed, compass(-windX, -windZ), AtmosphereModel.beaufort(speed));
+        return tr("wind", number("%.1f", speed), compass(-windX, -windZ), number("%.0f", AtmosphereModel.beaufort(speed)));
     }
 
-    /** Compass name of a horizontal direction. North is -Z, east is +X. */
-    static String compass(float x, float z) {
+    /** Compass name of a horizontal direction, translated. North is -Z, east is +X. */
+    static MutableComponent compass(float x, float z) {
         if (x * x + z * z < 1.0E-4F) {
-            return "nowhere";
+            return Component.translatable("climora.compass.calm");
         }
-        String[] names = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+        String[] names = {"n", "ne", "e", "se", "s", "sw", "w", "nw"};
         double degrees = Math.toDegrees(Math.atan2(x, -z));
         int index = (int) Math.floorMod(Math.round(degrees / 45.0), 8);
-        return names[index];
+        return Component.translatable("climora.compass." + names[index]);
     }
 
     @Nullable
     private static ClimateSimulation requireSimulation(CommandSourceStack source) {
         ClimateSimulation simulation = ClimateManager.get(source.getLevel());
         if (simulation == null) {
-            source.sendFailure(Component.literal("No climate simulation in this dimension."));
+            source.sendFailure(tr("no_simulation"));
         }
         return simulation;
     }
 
-    private static void send(CommandSourceStack source, String message, boolean broadcastToOps) {
-        source.sendSuccess(() -> Component.literal(message), broadcastToOps);
+    private static void send(CommandSourceStack source, Component message, boolean broadcastToOps) {
+        source.sendSuccess(() -> message, broadcastToOps);
     }
 
-    private static String format(String pattern, Object... args) {
-        return String.format(Locale.ROOT, pattern, args);
+    private static MutableComponent tr(String key, Object... args) {
+        return Component.translatable(PREFIX + key, args);
+    }
+
+    private static String number(String pattern, double value) {
+        return String.format(Locale.ROOT, pattern, value);
+    }
+
+    private static String percent(float value) {
+        return Float.isNaN(value) ? "?" : String.format(Locale.ROOT, "%.0f", value * 100.0F);
+    }
+
+    private static String share(double value) {
+        return Double.isNaN(value) ? "?" : String.format(Locale.ROOT, "%.1f", value * 100.0);
     }
 }

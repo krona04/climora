@@ -1,0 +1,98 @@
+{
+  "multipart": [
+    {
+      "when": {
+        "low": "false"
+      },
+      "apply": {
+        "model": "climora:block/puddle_center"
+      }
+    },
+    {
+      "when": {
+        "north": "true",
+        "low": "false"
+      },
+      "apply": {
+        "model": "climora:block/puddle_arm"
+      }
+    },
+    {
+      "when": {
+        "east": "true",
+        "low": "false"
+      },
+      "apply": {
+        "model": "climora:block/puddle_arm",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "south": "true",
+        "low": "false"
+      },
+      "apply": {
+        "model": "climora:block/puddle_arm",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "west": "true",
+        "low": "false"
+      },
+      "apply": {
+        "model": "climora:block/puddle_arm",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "low": "true"
+      },
+      "apply": {
+        "model": "climora:block/puddle_center_low"
+      }
+    },
+    {
+      "when": {
+        "north": "true",
+        "low": "true"
+      },
+      "apply": {
+        "model": "climora:block/puddle_arm_low"
+      }
+    },
+    {
+      "when": {
+        "east": "true",
+        "low": "true"
+      },
+      "apply": {
+        "model": "climora:block/puddle_arm_low",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "south": "true",
+        "low": "true"
+      },
+      "apply": {
+        "model": "climora:block/puddle_arm_low",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "west": "true",
+        "low": "true"
+      },
+      "apply": {
+        "model": "climora:block/puddle_arm_low",
+        "y": 270
+      }
+    }
+  ]
+}

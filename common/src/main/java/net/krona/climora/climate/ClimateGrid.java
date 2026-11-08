@@ -20,7 +20,7 @@ public final class ClimateGrid extends SavedData {
     /** The mod was called Tempestra until 0.1.1; worlds saved back then keep their data under this name. */
     public static final String LEGACY_DATA_NAME = "tempestra_climate";
     /** Bump on every format change and add an upgrade step to {@link #upgrade}. */
-    public static final int DATA_VERSION = 4;
+    public static final int DATA_VERSION = 6;
 
     static final String TAG_DATA_VERSION = "DataVersion";
     static final String TAG_CELL_SIZE = "CellSizeChunks";
@@ -36,8 +36,16 @@ public final class ClimateGrid extends SavedData {
     static final String TAG_CLOUD_COVER = "CloudCover";
     static final String TAG_PRECIPITATION = "Precipitation";
     static final String TAG_STORM = "Storm";
+    static final String TAG_COLUMN_TEMPERATURE = "ColumnTemperature";
+    static final String TAG_WETNESS = "Wetness";
+    static final String TAG_WEATHER_TIME = "WeatherTime";
 
     private final Long2ObjectOpenHashMap<ClimateCell> cells = new Long2ObjectOpenHashMap<>();
+    /**
+     * Clock of the weather systems, ticks. It runs at {@code weatherSpeed} times game time, so the speed
+     * can change without the pressure pattern jumping. NaN until the simulation sets it (new or upgraded data).
+     */
+    private double weatherTime = Double.NaN;
     /** Data written by a newer version of the mod. Kept untouched and written back as is. */
     @Nullable
     private CompoundTag unsupportedData;
@@ -67,6 +75,14 @@ public final class ClimateGrid extends SavedData {
 
     public int size() {
         return cells.size();
+    }
+
+    public double weatherTime() {
+        return weatherTime;
+    }
+
+    public void setWeatherTime(double weatherTime) {
+        this.weatherTime = weatherTime;
     }
 
     /** True when the saved data is from a newer mod version; the simulation must not run. */
@@ -110,13 +126,16 @@ public final class ClimateGrid extends SavedData {
         int[] cloudCover = tag.getIntArray(TAG_CLOUD_COVER);
         int[] precipitation = tag.getIntArray(TAG_PRECIPITATION);
         int[] storm = tag.getIntArray(TAG_STORM);
+        int[] columnTemperature = tag.getIntArray(TAG_COLUMN_TEMPERATURE);
+        int[] wetness = tag.getIntArray(TAG_WETNESS);
+        grid.weatherTime = tag.contains(TAG_WEATHER_TIME) ? tag.getDouble(TAG_WEATHER_TIME) : Double.NaN;
 
         int count = keys.length;
         if (lastUpdate.length != count || baseTemperature.length != count || baseAmplitude.length != count
                 || baseHumidity.length != count
                 || waterFraction.length != count || elevation.length != count || temperature.length != count
                 || moisture.length != count || cloudCover.length != count || precipitation.length != count
-                || storm.length != count) {
+                || storm.length != count || columnTemperature.length != count || wetness.length != count) {
             Climora.LOGGER.error("Climate data is corrupted (array lengths differ). Cells will be rebuilt.");
             return grid;
         }
@@ -137,6 +156,7 @@ public final class ClimateGrid extends SavedData {
                     Float.intBitsToFloat(cloudCover[i]),
                     Float.intBitsToFloat(precipitation[i]),
                     Float.intBitsToFloat(storm[i]));
+            cell.setGround(Float.intBitsToFloat(columnTemperature[i]), Float.intBitsToFloat(wetness[i]));
             grid.put(cell);
         }
         return grid;
@@ -149,6 +169,8 @@ public final class ClimateGrid extends SavedData {
                 case 1 -> upgradeFrom1(tag);
                 case 2 -> upgradeFrom2(tag);
                 case 3 -> upgradeFrom3(tag);
+                case 4 -> upgradeFrom4(tag);
+                case 5 -> upgradeFrom5(tag);
                 default -> throw new IllegalStateException("Missing climate data upgrade from version " + version);
             }
         }
@@ -177,6 +199,25 @@ public final class ClimateGrid extends SavedData {
 
     /** Version 4 adds the day/night amplitude from the biome climate profiles: cells are re-sampled. */
     private static void upgradeFrom3(CompoundTag tag) {
+        tag.putIntArray(TAG_BASE_AMPLITUDE, filledInts(cellCount(tag), Float.floatToIntBits(Float.NaN)));
+    }
+
+    /**
+     * Version 5 (0.2) adds the air aloft (unknown, so it starts at the equilibrium of each cell), wet ground
+     * (dry) and the weather clock (missing, so the simulation starts it at the current game time: the
+     * pressure pattern of 0.1 was driven by game time, so it continues without a jump).
+     */
+    private static void upgradeFrom4(CompoundTag tag) {
+        int count = cellCount(tag);
+        tag.putIntArray(TAG_COLUMN_TEMPERATURE, filledInts(count, Float.floatToIntBits(Float.NaN)));
+        tag.putIntArray(TAG_WETNESS, filledInts(count, Float.floatToIntBits(0.0F)));
+    }
+
+    /**
+     * Version 6 changes the climate of snow-covered biomes (a small day/night swing that keeps them frozen).
+     * The base values are re-sampled from the terrain; the simulated weather of the cells stays.
+     */
+    private static void upgradeFrom5(CompoundTag tag) {
         tag.putIntArray(TAG_BASE_AMPLITUDE, filledInts(cellCount(tag), Float.floatToIntBits(Float.NaN)));
     }
 
@@ -209,6 +250,8 @@ public final class ClimateGrid extends SavedData {
         int[] cloudCover = new int[count];
         int[] precipitation = new int[count];
         int[] storm = new int[count];
+        int[] columnTemperature = new int[count];
+        int[] wetness = new int[count];
 
         int i = 0;
         for (ClimateCell cell : cells.values()) {
@@ -224,6 +267,8 @@ public final class ClimateGrid extends SavedData {
             cloudCover[i] = Float.floatToIntBits(cell.cloudCover());
             precipitation[i] = Float.floatToIntBits(cell.precipitation());
             storm[i] = Float.floatToIntBits(cell.storm());
+            columnTemperature[i] = Float.floatToIntBits(cell.columnTemperature());
+            wetness[i] = Float.floatToIntBits(cell.wetness());
             i++;
         }
 
@@ -241,6 +286,11 @@ public final class ClimateGrid extends SavedData {
         tag.putIntArray(TAG_CLOUD_COVER, cloudCover);
         tag.putIntArray(TAG_PRECIPITATION, precipitation);
         tag.putIntArray(TAG_STORM, storm);
+        tag.putIntArray(TAG_COLUMN_TEMPERATURE, columnTemperature);
+        tag.putIntArray(TAG_WETNESS, wetness);
+        if (!Double.isNaN(weatherTime)) {
+            tag.putDouble(TAG_WEATHER_TIME, weatherTime);
+        }
         return tag;
     }
 }

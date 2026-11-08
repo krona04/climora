@@ -3,6 +3,7 @@ package net.krona.climora.climate;
 import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.krona.climora.config.ClimoraConfig;
+import net.krona.climora.weather.HailDamage;
 import net.krona.climora.weather.LightningSpawner;
 import net.krona.climora.weather.WeatherView;
 import net.minecraft.server.level.ServerLevel;
@@ -51,6 +52,10 @@ public final class ClimateSimulation implements WeatherView {
         this.grid = grid;
         this.synoptic = new SynopticField(level.getSeed());
         this.lightning = new LightningSpawner(level);
+        if (Double.isNaN(grid.weatherTime())) {
+            // New data, or data from 0.1: its pressure pattern ran on game time, so continue from there.
+            grid.setWeatherTime(level.getGameTime());
+        }
     }
 
     public ServerLevel level() {
@@ -67,6 +72,21 @@ public final class ClimateSimulation implements WeatherView {
 
     public SimulationStats stats() {
         return stats;
+    }
+
+    /** Clock of the weather systems: game time scaled by {@code weatherSpeed}, ticks. */
+    public double weatherTime() {
+        return grid.weatherTime();
+    }
+
+    /** How far the weather systems move per game tick, blocks. X component. */
+    public double driftPerGameTickX() {
+        return synoptic.driftVelocityX(weatherTime()) * ClimoraConfig.server().weatherSpeed;
+    }
+
+    /** How far the weather systems move per game tick, blocks. Z component. */
+    public double driftPerGameTickZ() {
+        return synoptic.driftVelocityZ(weatherTime()) * ClimoraConfig.server().weatherSpeed;
     }
 
     public int activeCellCount() {
@@ -91,6 +111,36 @@ public final class ClimateSimulation implements WeatherView {
     }
 
     @Override
+    public float wetness(double x, double z) {
+        float value = ClimateInterpolation.field(grid::get, x, z, ClimateInterpolation.Field.WETNESS);
+        return Float.isNaN(value) ? 0.0F : value;
+    }
+
+    @Override
+    public float hail(double x, double z) {
+        float value = ClimateInterpolation.field(grid::get, x, z, ClimateInterpolation.Field.HAIL);
+        return Float.isNaN(value) ? 0.0F : value;
+    }
+
+    @Override
+    public float columnTemperature(double x, double y, double z) {
+        if (!ClimoraConfig.server().freezingRain) {
+            // Unknown air aloft leaves plain rain and snow: freezing rain is switched off.
+            return Float.NaN;
+        }
+        ClimateInterpolation.Sample sample = sample(x, z);
+        // The same biome correction as the ground air: a snowfield inside a mild cell is cold all the way up,
+        // or every shower at its edge would fall as freezing rain.
+        return sample != null ? sample.columnTemperature(y) + microclimate(sample, x, y, z) : Float.NaN;
+    }
+
+    /** Correction of the cell-blended temperature for the biome at a position, see {@link Microclimate}. */
+    public float microclimate(ClimateInterpolation.Sample sample, double x, double y, double z) {
+        return Microclimate.offset(level, x, y, z, sample.baseTemperature(), sample.baseAmplitude(),
+                sample.surfaceElevation(), sample.cloudCover(), level.getDayTime());
+    }
+
+    @Override
     public float windX(double x, double z) {
         ClimateInterpolation.Sample sample = sample(x, z);
         return sample != null ? sample.windX() : 0.0F;
@@ -105,7 +155,7 @@ public final class ClimateSimulation implements WeatherView {
     @Override
     public float airTemperature(double x, double y, double z) {
         ClimateInterpolation.Sample sample = sample(x, z);
-        return sample != null ? sample.airTemperature(y) : Float.NaN;
+        return sample != null ? sample.airTemperature(y) + microclimate(sample, x, y, z) : Float.NaN;
     }
 
     public int pendingCellCount() {
@@ -172,6 +222,7 @@ public final class ClimateSimulation implements WeatherView {
         long start = System.nanoTime();
         long deadline = start + (long) (ClimoraConfig.server().tickBudgetMillis * 1_000_000L);
         long gameTime = level.getGameTime();
+        grid.setWeatherTime(grid.weatherTime() + ClimoraConfig.server().weatherSpeed);
 
         if (refreshNeeded || gameTime % ACTIVE_REFRESH_INTERVAL_TICKS == 0) {
             refreshActiveCells();
@@ -185,6 +236,7 @@ public final class ClimateSimulation implements WeatherView {
             grid.setDirty();
         }
         lightning.tick(this);
+        HailDamage.tick(this);
 
         long end = System.nanoTime();
         stats.recordTick(end - start, created, updated, end > deadline);
@@ -192,7 +244,7 @@ public final class ClimateSimulation implements WeatherView {
 
     /** Temperature the cell tends to right now, with clouds, precipitation and neighbours. */
     public float targetTemperature(ClimateCell cell) {
-        float meanTemperature = meanTemperature(cell, cell.precipitation());
+        float meanTemperature = AtmosphereModel.columnEquilibrium(cell.baseTemperature(), cell.precipitation());
         float diurnal = ClimateModel.diurnalOffset(cell.baseAmplitude(), level.getDayTime())
                 * (1.0F - AtmosphereModel.CLOUD_DIURNAL_DAMPING * cell.cloudCover());
         float target = meanTemperature + diurnal;
@@ -295,6 +347,9 @@ public final class ClimateSimulation implements WeatherView {
     private void updateCell(ClimateCell cell, long gameTime, long dayTime) {
         ClimoraConfig.Server config = ClimoraConfig.server();
         long elapsed = Math.max(0L, gameTime - cell.lastUpdateTick());
+        // Weather processes run on the weather clock; temperature and the day keep game time.
+        double weatherElapsed = elapsed * config.weatherSpeed;
+        double weatherTime = grid.weatherTime();
         double centerX = CellPos.centerBlock(cell.cellX());
         double centerZ = CellPos.centerBlock(cell.cellZ());
         WeatherOverride override = overrideAt(cell.cellX(), cell.cellZ());
@@ -303,31 +358,37 @@ public final class ClimateSimulation implements WeatherView {
         float neighbourMean = neighbourMeanTemperature(cell);
         float thermal = Float.isNaN(neighbourMean)
                 ? 0.0F : -AtmosphereModel.THERMAL_PRESSURE_PER_DEGREE * (cell.temperature() - neighbourMean);
-        float pressure = (float) synoptic.pressure(centerX, centerZ, gameTime) + thermal;
+        float pressure = (float) synoptic.pressure(centerX, centerZ, weatherTime) + thermal;
         float lift = override != null ? override.mode().lift : AtmosphereModel.lift(pressure);
 
         // Wind from the pressure gradient and the drift of the weather systems.
-        double gradientX = (pressureAt(cell.cellX() + 1, cell.cellZ(), gameTime)
-                - pressureAt(cell.cellX() - 1, cell.cellZ(), gameTime)) / (2.0 * CELL_SIZE_BLOCKS);
-        double gradientZ = (pressureAt(cell.cellX(), cell.cellZ() + 1, gameTime)
-                - pressureAt(cell.cellX(), cell.cellZ() - 1, gameTime)) / (2.0 * CELL_SIZE_BLOCKS);
-        double steeringX = synoptic.driftVelocityX(gameTime) / AtmosphereModel.ADVECTION_BLOCKS_PER_TICK_PER_MPS;
-        double steeringZ = synoptic.driftVelocityZ(gameTime) / AtmosphereModel.ADVECTION_BLOCKS_PER_TICK_PER_MPS;
+        double gradientX = (pressureAt(cell.cellX() + 1, cell.cellZ(), gameTime, weatherTime)
+                - pressureAt(cell.cellX() - 1, cell.cellZ(), gameTime, weatherTime)) / (2.0 * CELL_SIZE_BLOCKS);
+        double gradientZ = (pressureAt(cell.cellX(), cell.cellZ() + 1, gameTime, weatherTime)
+                - pressureAt(cell.cellX(), cell.cellZ() - 1, gameTime, weatherTime)) / (2.0 * CELL_SIZE_BLOCKS);
+        // Drift per weather tick, so the steering wind in m/s does not change with weatherSpeed.
+        double steeringX = synoptic.driftVelocityX(weatherTime) / AtmosphereModel.ADVECTION_BLOCKS_PER_TICK_PER_MPS;
+        double steeringZ = synoptic.driftVelocityZ(weatherTime) / AtmosphereModel.ADVECTION_BLOCKS_PER_TICK_PER_MPS;
         double gust = 1.0 + 0.8 * cell.storm();
         double windX = (AtmosphereModel.SURFACE_STEERING_SHARE * steeringX - AtmosphereModel.GRADIENT_WIND_FACTOR * gradientX) * gust;
         double windZ = (AtmosphereModel.SURFACE_STEERING_SHARE * steeringZ - AtmosphereModel.GRADIENT_WIND_FACTOR * gradientZ) * gust;
+        if (override != null) {
+            windX *= override.mode().windScale;
+            windZ *= override.mode().windScale;
+        }
         double windSpeed = Math.sqrt(windX * windX + windZ * windZ);
         if (windSpeed > AtmosphereModel.MAX_WIND_SPEED) {
             windX *= AtmosphereModel.MAX_WIND_SPEED / windSpeed;
             windZ *= AtmosphereModel.MAX_WIND_SPEED / windSpeed;
         }
 
-        // Moisture and clouds arrive from upwind.
+        // Moisture, clouds and the air aloft arrive from upwind.
         float moisture = cell.moisture();
         float cloud = cell.cloudCover();
+        float column = cell.columnTemperature();
         if (!Float.isNaN(moisture) && elapsed > 0) {
-            double shiftX = windX * AtmosphereModel.ADVECTION_BLOCKS_PER_TICK_PER_MPS * elapsed;
-            double shiftZ = windZ * AtmosphereModel.ADVECTION_BLOCKS_PER_TICK_PER_MPS * elapsed;
+            double shiftX = windX * AtmosphereModel.ADVECTION_BLOCKS_PER_TICK_PER_MPS * weatherElapsed;
+            double shiftZ = windZ * AtmosphereModel.ADVECTION_BLOCKS_PER_TICK_PER_MPS * weatherElapsed;
             double shift = Math.sqrt(shiftX * shiftX + shiftZ * shiftZ);
             if (shift > CELL_SIZE_BLOCKS) {
                 shiftX *= CELL_SIZE_BLOCKS / shift;
@@ -337,11 +398,14 @@ public final class ClimateSimulation implements WeatherView {
             if (upwind != null) {
                 moisture = upwind[0];
                 cloud = upwind[1];
+                if (!Float.isNaN(upwind[2])) {
+                    column = upwind[2];
+                }
             }
         }
 
         // Temperature: clouds damp the day/night swing, precipitation cools.
-        float meanTemperature = meanTemperature(cell, cell.precipitation());
+        float meanTemperature = AtmosphereModel.columnEquilibrium(cell.baseTemperature(), cell.precipitation());
         float diurnalRaw = ClimateModel.diurnalOffset(cell.baseAmplitude(), dayTime);
         float targetTemperature = meanTemperature + diurnalRaw * (1.0F - AtmosphereModel.CLOUD_DIURNAL_DAMPING * cloud);
         if (!Float.isNaN(neighbourMean)) {
@@ -357,8 +421,8 @@ public final class ClimateSimulation implements WeatherView {
         if (Float.isNaN(moisture)) {
             moisture = moistureTarget;
         }
-        moisture = ClimateModel.relax(moisture, moistureTarget, elapsed, AtmosphereModel.EVAPORATION_TIME_TICKS);
-        moisture *= (float) Math.exp(-elapsed * cell.precipitation() / AtmosphereModel.PRECIPITATION_DRYING_TICKS);
+        moisture = ClimateModel.relax(moisture, moistureTarget, weatherElapsed, AtmosphereModel.EVAPORATION_TIME_TICKS);
+        moisture *= (float) Math.exp(-weatherElapsed * cell.precipitation() / AtmosphereModel.PRECIPITATION_DRYING_TICKS);
         if (override != null) {
             // Move the moisture towards what the forced weather needs, so it continues naturally afterwards.
             float forced = override.mode().humidity * saturation;
@@ -366,7 +430,8 @@ public final class ClimateSimulation implements WeatherView {
         }
         float columnHumidity = moisture / saturation;
         // Near the ground, air cooler than the daily mean would be supersaturated: the excess forms dew and fog.
-        float surfaceHumidity = Math.min(1.0F, AtmosphereModel.relativeHumidity(moisture, temperature, pressure));
+        float rawSurfaceHumidity = AtmosphereModel.relativeHumidity(moisture, temperature, pressure);
+        float surfaceHumidity = Math.min(1.0F, rawSurfaceHumidity);
 
         // Clouds, precipitation and thunderstorms.
         float cloudTarget;
@@ -382,8 +447,8 @@ public final class ClimateSimulation implements WeatherView {
             cloudTarget = AtmosphereModel.cloudTarget(columnHumidity, lift);
             precipitationTarget = AtmosphereModel.precipitationTarget(columnHumidity, lift);
         }
-        cloud = ClimateModel.relax(cloud, cloudTarget, elapsed, cloudTime);
-        float precipitation = ClimateModel.relax(cell.precipitation(), precipitationTarget, elapsed, precipitationTime);
+        cloud = ClimateModel.relax(cloud, cloudTarget, weatherElapsed, cloudTime);
+        float precipitation = ClimateModel.relax(cell.precipitation(), precipitationTarget, weatherElapsed, precipitationTime);
         // Clouds and rain are separate fields with their own response times, so without this the cell could
         // rain out of a sky the cloud formula had only half filled, and the player saw rain from a blue gap.
         cloud = Math.max(cloud, AtmosphereModel.overcastFor(precipitation));
@@ -396,29 +461,50 @@ public final class ClimateSimulation implements WeatherView {
             stormTarget = config.thunderstorms
                     ? AtmosphereModel.stormTarget(temperature, columnHumidity, lift, precipitation, heating) : 0.0F;
         }
-        float storm = ClimateModel.relax(cell.storm(), stormTarget, elapsed, stormTime);
+        float storm = ClimateModel.relax(cell.storm(), stormTarget, weatherElapsed, stormTime);
+        float hail = config.hail && config.thunderstorms ? AtmosphereModel.hailTarget(storm, lift, temperature) : 0.0F;
+
+        // Air aloft: carried by the wind (above), then slowly takes on the climate of the ground under it.
+        float columnTarget = AtmosphereModel.columnEquilibrium(cell.baseTemperature(), precipitation);
+        if (Float.isNaN(column)) {
+            column = columnTarget;
+        }
+        column = ClimateModel.relax(column, columnTarget, weatherElapsed, AtmosphereModel.COLUMN_ADJUST_TICKS);
+        if (override != null && !Float.isNaN(override.mode().columnWarming)) {
+            column = Math.max(column, Math.max(temperature + override.mode().columnWarming, WeatherOverride.WARM_ALOFT));
+        }
+
+        // Wet ground: soaked by rain, dried by warm, dry, windy air. Snow does not wet it until it melts.
+        float groundWind = (float) Math.sqrt(windX * windX + windZ * windZ);
+        float wetnessTarget = temperature > AtmosphereModel.SNOW_TEMPERATURE ? AtmosphereModel.wetnessTarget(precipitation) : 0.0F;
+        float wetness = cell.wetness();
+        float wetnessTime = wetnessTarget > wetness
+                ? AtmosphereModel.WETTING_TIME_TICKS
+                : AtmosphereModel.dryingTime(temperature, surfaceHumidity, groundWind);
+        wetness = ClimateModel.relax(wetness, wetnessTarget, weatherElapsed, wetnessTime);
 
         cell.setTemperature(temperature);
         cell.setWeather(moisture, AtmosphereModel.clamp01(cloud), AtmosphereModel.clamp01(precipitation), AtmosphereModel.clamp01(storm));
+        cell.setGround(column, AtmosphereModel.clamp01(wetness));
+        cell.setHail(hail, AtmosphereModel.fog(rawSurfaceHumidity, groundWind, cloud, precipitation));
         cell.setDerived(pressure, surfaceHumidity, (float) windX, (float) windZ, gameTime);
         cell.setLastUpdateTick(gameTime);
+
+        boolean raining = precipitation >= AtmosphereModel.OVERCAST_PRECIPITATION;
+        stats.recordWeather(elapsed, raining, raining && storm >= LightningSpawner.MIN_STORM, raining && hail >= HAIL_THRESHOLD,
+                raining && AtmosphereModel.precipitationType(temperature, column) == AtmosphereModel.PrecipitationType.FREEZING_RAIN);
     }
 
-    /**
-     * Daily mean temperature of a cell. The height of the cell is already included in its base
-     * temperature (the biome profile is applied at the sampled height), so only precipitation cools it.
-     */
-    private float meanTemperature(ClimateCell cell, float precipitation) {
-        return cell.baseTemperature() - AtmosphereModel.PRECIPITATION_COOLING * precipitation;
-    }
+    /** Hail below this intensity is not drawn and does not count as hail. */
+    public static final float HAIL_THRESHOLD = 0.08F;
 
     /** Current pressure of a cell, or the synoptic pressure at its center if it has not been updated recently. */
-    private double pressureAt(int cellX, int cellZ, long gameTime) {
+    private double pressureAt(int cellX, int cellZ, long gameTime, double weatherTime) {
         ClimateCell cell = grid.get(CellPos.key(cellX, cellZ));
         if (cell != null && gameTime - cell.derivedTick() <= STALE_PRESSURE_TICKS) {
             return cell.pressure();
         }
-        return synoptic.pressure(CellPos.centerBlock(cellX), CellPos.centerBlock(cellZ), gameTime);
+        return synoptic.pressure(CellPos.centerBlock(cellX), CellPos.centerBlock(cellZ), weatherTime);
     }
 
     /** Mean temperature of the existing orthogonal neighbours, or NaN if there are none. */

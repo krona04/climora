@@ -33,6 +33,13 @@ configurations {
         canBeResolved = true
         canBeConsumed = false
     }
+
+    // Production mod jars copied into run/mods for development runs, see climoraRenderer below.
+    renderModsRaw {
+        canBeResolved = true
+        canBeConsumed = false
+        transitive = false
+    }
 }
 
 repositories {
@@ -40,12 +47,31 @@ repositories {
         name = 'NeoForged'
         url = 'https://maven.neoforged.net/releases'
     }
+    maven {
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
 }
 
 dependencies {
     neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
 
     modImplementation "dev.architectury:architectury-neoforge:$rootProject.architectury_api_version"
+
+    // Rendering mods for compatibility checks, development runs only and never shipped:
+    // ./gradlew :neoforge:runClient -PclimoraRenderer=sodium   (or =iris with Sodium, or =sodium8)
+    // Sodium and Iris ship early-loading services that break when Loom puts them on the classpath,
+    // so they go into run/mods as plain jars, the way a player installs them.
+    def renderer = project.findProperty('climoraRenderer')
+    if (renderer == 'sodium' || renderer == 'iris') {
+        renderModsRaw "maven.modrinth:sodium:$rootProject.sodium_neoforge_version"
+    }
+    if (renderer == 'iris') {
+        renderModsRaw "maven.modrinth:iris:$rootProject.iris_neoforge_version"
+    }
+    if (renderer == 'sodium8') {
+        renderModsRaw "maven.modrinth:sodium:$rootProject.sodium8_neoforge_version"
+    }
 
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
@@ -66,3 +92,22 @@ shadowJar {
 
 remapJar {
     input.set shadowJar.archiveFile}
+
+// Copies the jars chosen with -PclimoraRenderer into run/mods under a prefix, and removes the ones from an
+// earlier run, so a plain runClient is vanilla again. Only files with the prefix are ever touched.
+tasks.register('syncRenderMods') {
+    def raw = configurations.renderModsRaw
+    def modsDir = file('run/mods')
+    def prefix = 'climora-dev-'
+    doLast {
+        modsDir.mkdirs()
+        modsDir.listFiles().findAll { it.name.startsWith(prefix) }.each { it.delete() }
+        raw.files.each { jar ->
+            java.nio.file.Files.copy(jar.toPath(), new File(modsDir, prefix + jar.name).toPath())
+        }
+    }
+}
+
+tasks.named('runClient') {
+    dependsOn 'syncRenderMods'
+}

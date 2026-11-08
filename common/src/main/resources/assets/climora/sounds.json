@@ -1,0 +1,23 @@
+{
+  "weather.hail": {
+    "subtitle": "subtitles.climora.weather.hail",
+    "sounds": [
+      {
+        "name": "minecraft:block/amethyst/hit1",
+        "volume": 0.6
+      },
+      {
+        "name": "minecraft:block/amethyst/hit2",
+        "volume": 0.6
+      },
+      {
+        "name": "minecraft:block/amethyst/hit3",
+        "volume": 0.6
+      },
+      {
+        "name": "minecraft:block/amethyst/hit4",
+        "volume": 0.6
+      }
+    ]
+  }
+}

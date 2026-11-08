@@ -4,12 +4,26 @@
   "compatibilityLevel": "JAVA_21",
   "minVersion": "0.8",
   "client": [
+    "client.ClientLevelMixin",
+    "client.FogRendererMixin",
     "client.LevelRendererMixin"
   ],
   "mixins": [
     "LevelMixin",
     "ServerLevelMixin",
-    "WeatherCommandMixin"
+    "WeatherCommandMixin",
+    "vanilla.BeeMixin",
+    "vanilla.BeePollinateGoalMixin",
+    "vanilla.BeehiveBlockEntityMixin",
+    "vanilla.FireBlockMixin",
+    "vanilla.FoxMixin",
+    "vanilla.FoxSeekShelterGoalMixin",
+    "vanilla.EntityMixin",
+    "vanilla.MonsterMixin",
+    "vanilla.PandaMixin",
+    "vanilla.PlayerMixin",
+    "vanilla.ServerPlayerMixin",
+    "vanilla.WeatherCheckMixin"
   ],
   "injectors": {
     "defaultRequire": 1

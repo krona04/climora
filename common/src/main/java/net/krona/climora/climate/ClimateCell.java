@@ -36,12 +36,23 @@ public final class ClimateCell {
     private float precipitation;
     /** Thunderstorm intensity, 0..1. */
     private float storm;
+    /**
+     * Temperature of the air aloft at the mean surface height, °C, or NaN until the first update after an
+     * upgrade. Carried by the wind, so it can differ from the ground air: warm air over cold ground.
+     */
+    private float columnTemperature = Float.NaN;
+    /** How wet the ground is, 0..1. Puddles form above a threshold and dry out below it. */
+    private float wetness;
     /** Game time of the last simulation step. */
     private long lastUpdateTick;
 
     // Derived values, not saved.
     private float pressure = (float) SynopticField.SEA_LEVEL_PRESSURE;
     private float relativeHumidity;
+    /** Hail intensity, 0..1. */
+    private float hail;
+    /** Radiation fog near the ground, 0..1. */
+    private float fog;
     /** Wind near the ground, m/s. */
     private float windX;
     private float windZ;
@@ -122,8 +133,24 @@ public final class ClimateCell {
         return storm;
     }
 
+    public float columnTemperature() {
+        return columnTemperature;
+    }
+
+    public float wetness() {
+        return wetness;
+    }
+
     public long lastUpdateTick() {
         return lastUpdateTick;
+    }
+
+    public float hail() {
+        return hail;
+    }
+
+    public float fog() {
+        return fog;
     }
 
     public float pressure() {
@@ -157,6 +184,16 @@ public final class ClimateCell {
         this.storm = storm;
     }
 
+    void setGround(float columnTemperature, float wetness) {
+        this.columnTemperature = columnTemperature;
+        this.wetness = wetness;
+    }
+
+    void setHail(float hail, float fog) {
+        this.hail = hail;
+        this.fog = fog;
+    }
+
     public long derivedTick() {
         return derivedTick;
     }
@@ -180,6 +217,8 @@ public final class ClimateCell {
         this.cloudCover = other.cloudCover;
         this.precipitation = other.precipitation;
         this.storm = other.storm;
+        this.columnTemperature = other.columnTemperature;
+        this.wetness = other.wetness;
         this.lastUpdateTick = other.lastUpdateTick;
     }
 }

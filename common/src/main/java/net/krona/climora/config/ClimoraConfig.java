@@ -85,7 +85,8 @@ public final class ClimoraConfig {
 
     /** Simulation and gameplay options. Reload in game with {@code /climora reload}. */
     public static final class Server {
-        public String _about = "Climora server config. Reload with /climora reload. See docs/CONFIG.md for every option.";
+        private static final String ABOUT = "Climora server config. Reload with /climora reload. See docs/CONFIG.md for every option.";
+        public String _about = ABOUT;
 
         /** Replace the global vanilla rain with local weather. When false, the climate is still simulated but vanilla weather is used. */
         public boolean localWeather = true;
@@ -111,18 +112,36 @@ public final class ClimoraConfig {
         /** Make the vanilla /weather command start local weather around the player instead of doing nothing. */
         public boolean redirectWeatherCommand = true;
 
+        /**
+         * How fast weather develops compared with the default: weather systems drift, clouds gather, rain
+         * starts and stops and the ground dries this many times faster. Temperature and the day keep their
+         * pace, and wind speeds stay the same. 0.25..8
+         */
+        public double weatherSpeed = 1.0;
+        /** Hail in the strongest warm thunderstorms. */
+        public boolean hail = true;
+        /** Hail hurts players and mobs caught in the open. Off by default: it changes survival a lot. */
+        public boolean hailDamage = false;
+        /** Rain that falls through warm air aloft onto frozen ground freezes on contact and glazes blocks with ice. */
+        public boolean freezingRain = true;
+        /** Puddles form in hollows of natural ground in heavy rain and dry out afterwards. */
+        public boolean puddles = true;
+
         void validate() {
+            _about = ABOUT;
             activeRadiusCells = clamp(activeRadiusCells, 1, 8);
             tickBudgetMillis = clamp(tickBudgetMillis, 0.1, 20.0);
             maxCellSamplesPerTick = clamp(maxCellSamplesPerTick, 1, 16);
             humidityBias = clamp(humidityBias, -0.3, 0.3);
             lightningRate = clamp(lightningRate, 0.0, 10.0);
+            weatherSpeed = clamp(weatherSpeed, 0.25, 8.0);
         }
     }
 
     /** Rendering options. Read when the game starts. */
     public static final class Client {
-        public String _about = "Climora client config. Restart the game to apply. See docs/CONFIG.md for every option.";
+        private static final String ABOUT = "Climora client config. Restart the game to apply. See docs/CONFIG.md for every option.";
+        public String _about = ABOUT;
 
         /** Draw rain and snow only where it actually rains. When false, vanilla rain rendering is used. */
         public boolean localPrecipitation = true;
@@ -132,8 +151,17 @@ public final class ClimoraConfig {
         public boolean dynamicClouds = true;
         /** How far dynamic clouds are drawn, blocks. 0 follows the render distance of the game. */
         public int cloudRenderDistance = 0;
+        /** Draw showers in the distance as grey curtains of rain under their clouds. */
+        public boolean distantRain = true;
+        /** Fog on still, humid nights and poor visibility in downpours and heavy snow. */
+        public boolean weatherFog = true;
+        /** Look on Modrinth once per launch for a newer release of the mod and say so in chat. */
+        public boolean checkForUpdates = true;
+        /** On joining a world or a server: a welcome the first time, then a line about supporting the mod on Ko-fi. */
+        public boolean showSupportMessage = true;
 
         void validate() {
+            _about = ABOUT;
             if (cloudRenderDistance != 0) {
                 cloudRenderDistance = clamp(cloudRenderDistance, 96, 1024);
             }

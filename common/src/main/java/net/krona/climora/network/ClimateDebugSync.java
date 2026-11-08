@@ -92,7 +92,7 @@ public final class ClimateDebugSync {
                 cellX,
                 cellZ,
                 hasCell,
-                hasSample ? sample.airTemperature(player.getY()) : Float.NaN,
+                hasSample ? simulation.airTemperature(player.getX(), player.getY(), player.getZ()) : Float.NaN,
                 hasSample ? sample.surfaceElevation() : Float.NaN,
                 hasSample ? sample.pressure() : 0.0F,
                 hasSample ? sample.relativeHumidity() : 0.0F,

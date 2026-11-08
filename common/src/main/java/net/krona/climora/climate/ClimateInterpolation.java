@@ -19,10 +19,17 @@ public final class ClimateInterpolation {
      * @param relativeHumidity   near the ground, 0..~1
      * @param pressure           sea-level pressure, hPa
      * @param windX              near the ground, m/s
+     * @param surfaceColumn      air aloft at the interpolated surface height, °C, or NaN if unknown
+     * @param hail               hail intensity, 0..1
+     * @param wetness            how wet the ground is, 0..1
+     * @param baseTemperature    daily mean of the blended cells at their elevation, °C, or NaN if unknown
+     * @param baseAmplitude      half of the day/night swing of the blended cells, °C, or NaN if unknown
      * @param cellCount          number of existing cells that contributed
      */
     public record Sample(float surfaceTemperature, float surfaceElevation, float relativeHumidity, float pressure,
-                         float cloudCover, float precipitation, float storm, float windX, float windZ, int cellCount) {
+                         float cloudCover, float precipitation, float storm, float windX, float windZ,
+                         float surfaceColumn, float hail, float wetness, float baseTemperature,
+                         float baseAmplitude, int cellCount) {
         public Sample {
             // Each cell already keeps its cover at least as high as its rain implies, but the two fields are
             // blended separately and that clamp does not survive blending: between an overcast cell and a
@@ -39,8 +46,16 @@ public final class ClimateInterpolation {
             return surfaceTemperature + ClimateModel.altitudeOffset(surfaceElevation, (float) y);
         }
 
+        /** Temperature of the air aloft at the given height, °C, or NaN if unknown. */
+        public float columnTemperature(double y) {
+            if (Float.isNaN(surfaceColumn) || Float.isNaN(surfaceElevation)) {
+                return surfaceColumn;
+            }
+            return surfaceColumn + ClimateModel.altitudeOffset(surfaceElevation, (float) y);
+        }
+
         public AtmosphereModel.PrecipitationType precipitationType(double y) {
-            return AtmosphereModel.precipitationType(airTemperature(y));
+            return AtmosphereModel.precipitationType(airTemperature(y), columnTemperature(y));
         }
 
         public float windSpeed() {
@@ -68,6 +83,13 @@ public final class ClimateInterpolation {
         double storm = 0.0;
         double windX = 0.0;
         double windZ = 0.0;
+        double hail = 0.0;
+        double wetness = 0.0;
+        double baseSum = 0.0;
+        double amplitudeSum = 0.0;
+        double baseWeight = 0.0;
+        double columnSum = 0.0;
+        double columnWeight = 0.0;
         double elevationSum = 0.0;
         double elevationWeight = 0.0;
         int count = 0;
@@ -90,6 +112,17 @@ public final class ClimateInterpolation {
                 storm += cell.storm() * weight;
                 windX += cell.windX() * weight;
                 windZ += cell.windZ() * weight;
+                hail += cell.hail() * weight;
+                wetness += cell.wetness() * weight;
+                if (!Float.isNaN(cell.baseAmplitude())) {
+                    baseSum += cell.baseTemperature() * weight;
+                    amplitudeSum += cell.baseAmplitude() * weight;
+                    baseWeight += weight;
+                }
+                if (!Float.isNaN(cell.columnTemperature())) {
+                    columnSum += cell.columnTemperature() * weight;
+                    columnWeight += weight;
+                }
                 if (cell.hasElevation()) {
                     elevationSum += cell.elevation() * weight;
                     elevationWeight += weight;
@@ -112,12 +145,17 @@ public final class ClimateInterpolation {
                 (float) (storm / weightSum),
                 (float) (windX / weightSum),
                 (float) (windZ / weightSum),
+                columnWeight > 0.0 ? (float) (columnSum / columnWeight) : Float.NaN,
+                (float) (hail / weightSum),
+                (float) (wetness / weightSum),
+                baseWeight > 0.0 ? (float) (baseSum / baseWeight) : Float.NaN,
+                baseWeight > 0.0 ? (float) (amplitudeSum / baseWeight) : Float.NaN,
                 count);
     }
 
     /** Fields that can be interpolated without building a full {@link Sample}. */
     public enum Field {
-        TEMPERATURE, PRECIPITATION, STORM
+        TEMPERATURE, PRECIPITATION, STORM, HAIL, WETNESS
     }
 
     /**
@@ -146,6 +184,8 @@ public final class ClimateInterpolation {
                     case TEMPERATURE -> cell.temperature();
                     case PRECIPITATION -> cell.precipitation();
                     case STORM -> cell.storm();
+                    case HAIL -> cell.hail();
+                    case WETNESS -> cell.wetness();
                 };
                 sum += value * weight;
                 weightSum += weight;
@@ -154,7 +194,10 @@ public final class ClimateInterpolation {
         return weightSum > 0.0 ? (float) (sum / weightSum) : Float.NaN;
     }
 
-    /** Only the moisture and cloud cover at a position, for transporting them with the wind. Null if no cells. */
+    /**
+     * Only the moisture, cloud cover and air aloft at a position, for transporting them with the wind.
+     * The air aloft is NaN where no cell knows it yet. Null if no cells.
+     */
     @Nullable
     static float[] sampleTransported(LongFunction<ClimateCell> cells, double x, double z) {
         double size = SimulationConstants.CELL_SIZE_BLOCKS;
@@ -169,6 +212,8 @@ public final class ClimateInterpolation {
         double moistureWeight = 0.0;
         double cloudSum = 0.0;
         double cloudWeight = 0.0;
+        double columnSum = 0.0;
+        double columnWeight = 0.0;
         for (int dx = 0; dx <= 1; dx++) {
             for (int dz = 0; dz <= 1; dz++) {
                 ClimateCell cell = cells.apply(CellPos.key(x0 + dx, z0 + dz));
@@ -180,11 +225,16 @@ public final class ClimateInterpolation {
                 moistureWeight += weight;
                 cloudSum += cell.cloudCover() * weight;
                 cloudWeight += weight;
+                if (!Float.isNaN(cell.columnTemperature())) {
+                    columnSum += cell.columnTemperature() * weight;
+                    columnWeight += weight;
+                }
             }
         }
         if (moistureWeight <= 0.0) {
             return null;
         }
-        return new float[]{(float) (moistureSum / moistureWeight), (float) (cloudSum / cloudWeight)};
+        return new float[]{(float) (moistureSum / moistureWeight), (float) (cloudSum / cloudWeight),
+                columnWeight > 0.0 ? (float) (columnSum / columnWeight) : Float.NaN};
     }
 }

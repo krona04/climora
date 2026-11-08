@@ -5,17 +5,35 @@ import dev.architectury.event.events.client.ClientTickEvent;
 import net.krona.climora.Climora;
 import net.krona.climora.client.ClientWeather;
 import net.krona.climora.client.CloudRenderer;
+import net.krona.climora.climate.CellPos;
+import net.krona.climora.climate.ClimateManager;
+import net.krona.climora.climate.ClimateSimulation;
+import net.krona.climora.config.ClimoraConfig;
+import net.krona.climora.registry.ClimoraRegistries;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.server.IntegratedServer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.QuartPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.WorldPresetTags;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LevelSettings;
 import net.minecraft.world.level.WorldDataConfiguration;
 import net.minecraft.world.level.levelgen.WorldOptions;
+import net.minecraft.world.level.levelgen.presets.WorldPreset;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 
 import java.io.IOException;
@@ -24,6 +42,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -43,6 +63,14 @@ public final class DevHarness {
     private static boolean worldRequested;
     private static int ticksInWorld;
     private static int nextStep;
+    /** Test rigs placed during a scenario, in block coordinates. */
+    private static BlockPos clearRig = BlockPos.ZERO;
+    private static BlockPos rainRig = BlockPos.ZERO;
+    private static BlockPos pit = BlockPos.ZERO;
+    private static double clockStart;
+    /** World type of the harness world; null is the default one. */
+    private static ResourceKey<WorldPreset> preset;
+    private static long gameStart;
 
     private record Step(int tick, String description, java.util.function.Consumer<Minecraft> action) {
     }
@@ -58,8 +86,15 @@ public final class DevHarness {
         switch (scenario) {
             case "weather" -> buildWeatherScenario();
             case "snow" -> buildSnowScenario();
+            case "precip" -> buildPrecipitationScenario();
+            case "ice" -> buildIceScenario();
+            case "climate" -> buildClimateScenario();
+            case "jungle" -> buildJungleClimateScenario();
+            case "distant" -> buildDistantScenario();
+            case "winter" -> buildWinterScenario();
+            case "belts" -> buildBeltsScenario();
             default -> {
-                Climora.LOGGER.error("[Harness] Unknown scenario '{}'. Use 'weather' or 'snow'.", scenario);
+                Climora.LOGGER.error("[Harness] Unknown scenario '{}'. Use weather, snow, precip, ice, climate, jungle, distant, winter or belts.", scenario);
                 return;
             }
         }
@@ -147,6 +182,384 @@ public final class DevHarness {
                 minecraft.isPaused(), ClientWeather.INSTANCE.isActive(), !CloudRenderer.replacesVanilla());
     }
 
+    /**
+     * Precipitation of 0.2: drizzle and downpour, hail in a warm thunderstorm, rain putting out a fire next
+     * to a control fire under a clear sky, a distant shower, puddles filling a pit and drying out, night fog,
+     * and the forecast.
+     */
+    private static void buildPrecipitationScenario() {
+        action(1, "small GUI", minecraft -> {
+            minecraft.options.guiScale().set(1);
+            minecraft.resizeDisplay();
+        });
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        command(22, "time set 4000");
+        action(25, "fly", minecraft -> {
+            minecraft.player.getAbilities().flying = true;
+            minecraft.player.onUpdateAbilities();
+        });
+        command(30, "execute positioned over motion_blocking run tp @s ~ ~1.6 ~ -45 8");
+
+        command(40, "climora weather drizzle 4 30000");
+        command(45, "tick sprint 600");
+        screenshot(160, "p01-drizzle");
+        command(165, "climora temperature");
+        action(166, "client weather", DevHarness::reportClientWeather);
+        command(167, "tp @s ~ ~ ~ -45 -80");
+        screenshot(180, "p01b-drizzle-zenith");
+        command(182, "tp @s ~ ~ ~ -45 8");
+
+        command(170, "climora weather downpour 4 30000");
+        command(175, "tick sprint 600");
+        screenshot(290, "p02-downpour");
+        command(295, "climora temperature");
+
+        command(300, "climora weather storm 4 30000");
+        command(305, "tick sprint 600");
+        command(420, "tp @s ~ ~ ~ -45 45");
+        screenshot(440, "p03-hail");
+        command(445, "climora cell");
+        command(447, "tp @s ~ ~ ~ -45 8");
+
+        // Rain puts out fire: a burning plank floor in a clear cell and one in a raining cell next to it.
+        command(450, "gamerule doFireTick true");
+        action(452, "fire rigs", minecraft -> {
+            BlockPos player = minecraft.player.blockPosition();
+            int cellX = CellPos.blockToCell(player.getX());
+            int cellZ = CellPos.blockToCell(player.getZ());
+            clearRig = new BlockPos(CellPos.centerBlock(cellX), 150, CellPos.centerBlock(cellZ));
+            rainRig = new BlockPos(CellPos.centerBlock(cellX + 1), 150, CellPos.centerBlock(cellZ));
+            send(minecraft, String.format("execute positioned %d 150 %d run climora weather clear 0 30000", clearRig.getX(), clearRig.getZ()));
+            send(minecraft, String.format("execute positioned %d 150 %d run climora weather rain 0 30000", rainRig.getX(), rainRig.getZ()));
+        });
+        command(455, "tick sprint 300");
+        onServer(520, "light fires", level -> {
+            buildFireRig(level, clearRig);
+            buildFireRig(level, rainRig);
+            return "5x5 burning plank floors at " + clearRig.toShortString() + " (clear) and " + rainRig.toShortString() + " (rain)";
+        });
+        command(525, "tick sprint 400");
+        onServer(600, "fire under a clear sky", level -> fireReport(level, clearRig));
+        onServer(601, "fire under rain", level -> fireReport(level, rainRig));
+
+        // A distant shower: clear here, rain in the next cell east, from about 80 to 300 blocks away. Looking east.
+        command(610, "climora weather auto");
+        command(611, "climora weather clear 6 30000");
+        command(612, "execute positioned ~180 ~ ~ run climora weather downpour 0 30000");
+        command(615, "tick sprint 600");
+        command(730, "tp @s ~ ~25 ~ -90 4");
+        screenshot(760, "p04-distant-rain");
+        action(762, "client weather", DevHarness::reportClientWeather);
+        command(765, "execute positioned over motion_blocking run tp @s ~ ~1.6 ~ -45 8");
+
+        // Puddles: steady rain on a pit dug into natural ground, then a dry spell.
+        command(770, "climora weather rain 3 30000");
+        onServer(775, "dig pit", level -> {
+            BlockPos player = BlockPos.containing(Minecraft.getInstance().player.position());
+            pit = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, player.offset(6, 0, 6));
+            int dug = 0;
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    BlockPos top = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, pit.offset(dx, 0, dz)).below();
+                    level.setBlockAndUpdate(top, Blocks.AIR.defaultBlockState());
+                    dug++;
+                }
+            }
+            return dug + " columns dug around " + pit.toShortString();
+        });
+        command(780, "tick sprint 8000");
+        onServer(940, "wet ground", level -> "wetness " + String.format(java.util.Locale.ROOT, "%.2f", simulation(level).wetness(pit.getX() + 0.5, pit.getZ() + 0.5)));
+        onServer(941, "puddles after rain", level -> countAround(level, pit, 4, 3, state -> state.is(ClimoraRegistries.PUDDLE.get())));
+        action(945, "look into the pit", minecraft -> send(minecraft,
+                String.format("tp @s %d.5 %d %d.5 facing %d.5 %d %d.5", pit.getX() - 4, pit.getY() + 3, pit.getZ() - 4,
+                        pit.getX(), pit.getY() - 1, pit.getZ())));
+        onServer(946, "puddle positions", level -> {
+            StringBuilder found = new StringBuilder();
+            for (BlockPos pos : BlockPos.betweenClosed(pit.offset(-4, -3, -4), pit.offset(4, 3, 4))) {
+                if (level.getBlockState(pos).is(ClimoraRegistries.PUDDLE.get())) {
+                    found.append(' ').append(pos.getX() - pit.getX()).append(',').append(pos.getY() - pit.getY()).append(',').append(pos.getZ() - pit.getZ());
+                }
+            }
+            return found.toString();
+        });
+        screenshot(970, "p05-puddles");
+        command(975, "climora weather clear 3 30000");
+        command(978, "tick sprint 12000");
+        onServer(1160, "wet ground after the dry spell", level -> "wetness " + String.format(java.util.Locale.ROOT, "%.2f", simulation(level).wetness(pit.getX() + 0.5, pit.getZ() + 0.5)));
+        onServer(1161, "puddles after the dry spell", level -> countAround(level, pit, 4, 3, state -> state.is(ClimoraRegistries.PUDDLE.get())));
+
+        // Radiation fog: forms on a still, humid night, is seen at sunrise before the sun burns it off.
+        command(1170, "time set 18000");
+        command(1171, "climora weather fog 4 30000");
+        command(1175, "tick sprint 4000");
+        command(1290, "time set 23600");
+        command(1292, "execute positioned over motion_blocking run tp @s ~ ~1.6 ~ -45 3");
+        screenshot(1320, "p06-fog");
+        command(1325, "climora cell");
+        action(1326, "client weather", DevHarness::reportClientWeather);
+
+        command(1330, "time set 4000");
+        command(1331, "climora weather auto");
+        command(1335, "climora forecast");
+        command(1340, "climora stats");
+
+        // weatherSpeed runs the weather clock faster than game time.
+        onServer(1345, "weather clock", level -> {
+            clockStart = simulation(level).weatherTime();
+            gameStart = level.getGameTime();
+            ClimoraConfig.server().weatherSpeed = 4.0;
+            return String.format(java.util.Locale.ROOT, "weather time %.0f, speed set to x4", clockStart);
+        });
+        command(1347, "tick sprint 400");
+        onServer(1420, "weather clock at x4", level -> {
+            double weather = simulation(level).weatherTime() - clockStart;
+            long game = level.getGameTime() - gameStart;
+            ClimoraConfig.server().weatherSpeed = 1.0;
+            return String.format(java.util.Locale.ROOT, "%.0f weather ticks in %d game ticks (x%.2f)", weather, game, weather / game);
+        });
+        action(1440, "quit", Minecraft::stop);
+    }
+
+    /**
+     * Natural weather, nothing forced: five in-game days run fast, then how much of the time it rained,
+     * stormed, hailed and froze in the cells around the spawn.
+     */
+    private static void buildClimateScenario() {
+        command(20, "gamerule doMobSpawning false");
+        command(25, "tick sprint 120000");
+        for (int minute = 1; minute <= 4; minute++) {
+            command(minute * 1200, "climora stats");
+        }
+        command(4810, "climora forecast");
+        action(4830, "quit", Minecraft::stop);
+    }
+
+    /**
+     * A downpour in cell (2, 0), x 256..383, with clear sky everywhere else, seen from the west at three
+     * distances. Fixed coordinates, so every run shows the same thing; no GUI in the shots.
+     */
+    private static void buildDistantScenario() {
+        action(1, "small GUI", minecraft -> {
+            minecraft.options.guiScale().set(1);
+            minecraft.resizeDisplay();
+        });
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        command(22, "time set 4000");
+        // A spectator does not fall while the time runs fast, and has no hand in the shot.
+        command(25, "gamemode spectator");
+        command(30, "tp @s 100 110 64 -90 -6");
+        command(60, "climora weather clear 6 30000");
+        command(61, "execute positioned 320 110 64 run climora weather downpour 0 30000");
+        command(65, "tick sprint 600");
+        action(180, "hide GUI", minecraft -> minecraft.options.hideGui = true);
+        screenshot(190, "d01-near");
+        command(195, "tp @s 30 100 64 -90 -4");
+        screenshot(240, "d02-far");
+        command(245, "tp @s 150 140 40 -70 12");
+        screenshot(290, "d03-above");
+        command(295, "execute positioned 120 0 64 positioned over motion_blocking run tp @s ~ ~2 ~ -90 -10");
+        screenshot(340, "d04-ground");
+        action(345, "client weather", DevHarness::reportClientWeather);
+        action(360, "quit", Minecraft::stop);
+    }
+
+    /**
+     * Snowy biomes stay snowy: the nearest snowy plains under a clear sky at the warmest hour of the day,
+     * for half a day. Counts the snow layers before and after, in the middle and with the edges.
+     */
+    private static void buildWinterScenario() {
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        command(22, "time set 9000");
+        command(23, "gamemode spectator");
+        onServer(25, "find snowy plains", level -> {
+            var found = level.findClosestBiome3d(biome -> biome.is(net.minecraft.world.level.biome.Biomes.SNOWY_PLAINS),
+                    playerPos(), 6400, 64, 64);
+            if (found == null) {
+                return "no snowy plains within 6400 blocks";
+            }
+            pit = found.getFirst();
+            level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack(),
+                    String.format("tp %s %d 160 %d", Minecraft.getInstance().player.getGameProfile().getName(), pit.getX(), pit.getZ()));
+            return "snowy plains at " + pit.toShortString();
+        });
+        command(200, "climora weather clear 4 60000");
+        onServer(210, "snow before (middle 48x48)", level -> countSnow(level, pit, 24));
+        onServer(211, "snow before (with edges 160x160)", level -> countSnow(level, pit, 80));
+        command(215, "tick sprint 12000");
+        onServer(560, "snow after half a sunny day (middle 48x48)", level -> countSnow(level, pit, 24));
+        onServer(561, "snow after half a sunny day (with edges 160x160)", level -> countSnow(level, pit, 80));
+        action(565, "temperature at the snow", minecraft -> send(minecraft,
+                String.format("execute positioned %d 0 %d positioned over motion_blocking run climora temperature ~ ~ ~", pit.getX(), pit.getZ())));
+        action(566, "cell", minecraft -> send(minecraft, String.format("climora cell %d 70 %d", pit.getX(), pit.getZ())));
+        action(600, "quit", Minecraft::stop);
+    }
+
+    /**
+     * The "Climate belts" world type: biomes sampled along the meridian from the equator past the pole
+     * (straight from the biome source, no chunks generated), and views from above at the equator, the
+     * subtropics, the middle latitudes and the pole.
+     */
+    private static void buildBeltsScenario() {
+        preset = ResourceKey.create(Registries.WORLD_PRESET, ResourceLocation.fromNamespaceAndPath(Climora.MOD_ID, "climate_belts"));
+        action(1, "small GUI", minecraft -> {
+            minecraft.options.guiScale().set(1);
+            minecraft.resizeDisplay();
+        });
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        command(22, "time set 6000");
+        command(23, "gamemode spectator");
+        command(24, "climora weather clear 8 60000");
+        onServer(25, "listed with the normal world types", level -> String.valueOf(level.registryAccess()
+                .registryOrThrow(Registries.WORLD_PRESET).getTagOrEmpty(WorldPresetTags.NORMAL).iterator().hasNext()
+                && level.registryAccess().registryOrThrow(Registries.WORLD_PRESET).getHolderOrThrow(preset)
+                        .is(WorldPresetTags.NORMAL)));
+        for (int z = 0; z <= 12000; z += 500) {
+            int line = z;
+            onServer(30, "z=" + line, level -> beltReport(level, line));
+        }
+        onServer(31, "southern hemisphere z=-5000", level -> beltReport(level, -5000));
+        onServer(31, "southern hemisphere z=-10500", level -> beltReport(level, -10500));
+        action(40, "hide GUI", minecraft -> minecraft.options.hideGui = true);
+        int tick = 40;
+        for (int z : new int[] {0, 2500, 4500, 7200, 10500}) {
+            command(tick, "tp @s 0 230 " + z + " 0 55");
+            screenshot(tick + 240, "b-z" + z);
+            tick += 250;
+        }
+        action(tick + 10, "quit", Minecraft::stop);
+    }
+
+    /**
+     * The surface biomes along a line of latitude, 64 points 8000 blocks wide: the share where it snows, the
+     * share of hot ones, the commonest, and every one that is not frozen.
+     */
+    private static String beltReport(ServerLevel level, int z) {
+        var generator = level.getChunkSource().getGenerator();
+        var randomState = level.getChunkSource().randomState();
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        java.util.Map<String, Integer> thawed = new java.util.TreeMap<>();
+        int frozen = 0;
+        int hot = 0;
+        int points = 64;
+        for (int i = 0; i < points; i++) {
+            int x = -4000 + i * 125;
+            int y = Math.max(generator.getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, level, randomState), level.getSeaLevel());
+            var biome = generator.getBiomeSource().getNoiseBiome(QuartPos.fromBlock(x), QuartPos.fromBlock(y), QuartPos.fromBlock(z),
+                    randomState.sampler());
+            String name = biome.unwrapKey().map(key -> key.location().getPath()).orElse("?");
+            counts.merge(name, 1, Integer::sum);
+            BlockPos surface = new BlockPos(x, y, z);
+            if (biome.value().coldEnoughToSnow(surface) || name.contains("frozen")) {
+                frozen++;
+            } else {
+                thawed.merge(name, 1, Integer::sum);
+            }
+            if (biome.value().getBaseTemperature() >= 1.0F) {
+                hot++;
+            }
+        }
+        StringBuilder top = new StringBuilder();
+        counts.entrySet().stream().sorted(java.util.Map.Entry.<String, Integer>comparingByValue().reversed()).limit(4)
+                .forEach(entry -> top.append(' ').append(entry.getKey()).append('=').append(entry.getValue()));
+        return String.format(java.util.Locale.ROOT, "frozen %d%%, hot %d%%,%s | not frozen: %s",
+                frozen * 100 / points, hot * 100 / points, top, thawed);
+    }
+
+    /** Snow layers and snow blocks on the surface in a square around a position. */
+    private static String countSnow(ServerLevel level, BlockPos center, int radius) {
+        int layers = 0;
+        int columns = 0;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                BlockPos top = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, center.offset(dx, 0, dz));
+                BlockState state = level.getBlockState(top);
+                if (state.is(Blocks.SNOW)) {
+                    layers += state.getValue(net.minecraft.world.level.block.SnowLayerBlock.LAYERS);
+                    columns++;
+                }
+            }
+        }
+        return columns + " columns with snow, " + layers + " layers";
+    }
+
+    /** The same in the nearest jungle, where warm, humid air should bring thunderstorms on its own. */
+    private static void buildJungleClimateScenario() {
+        command(20, "gamerule doMobSpawning false");
+        onServer(25, "find a jungle", level -> {
+            var found = level.findClosestBiome3d(biome -> biome.is(net.minecraft.world.level.biome.Biomes.JUNGLE),
+                    playerPos(), 6400, 64, 64);
+            if (found == null) {
+                return "no jungle within 6400 blocks";
+            }
+            BlockPos pos = found.getFirst();
+            level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack(),
+                    String.format("tp %s %d 200 %d", Minecraft.getInstance().player.getGameProfile().getName(), pos.getX(), pos.getZ()));
+            return "jungle at " + pos.toShortString();
+        });
+        action(30, "fly", minecraft -> {
+            minecraft.player.getAbilities().flying = true;
+            minecraft.player.onUpdateAbilities();
+        });
+        command(200, "tick sprint 72000");
+        for (int minute = 1; minute <= 3; minute++) {
+            command(200 + minute * 1200, "climora stats");
+        }
+        command(3800, "climora cell");
+        action(3820, "quit", Minecraft::stop);
+    }
+
+    /**
+     * Ice of 0.2: sleet just above freezing, then freezing rain glazing the ground at night, then the glaze
+     * melting in the sun. In old growth spruce taiga, whose daily mean is just above freezing.
+     */
+    private static void buildIceScenario() {
+        action(1, "small GUI", minecraft -> {
+            minecraft.options.guiScale().set(1);
+            minecraft.resizeDisplay();
+        });
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        action(25, "fly", minecraft -> {
+            minecraft.player.getAbilities().flying = true;
+            minecraft.player.onUpdateAbilities();
+        });
+        command(30, "execute positioned 64 0 64 positioned over motion_blocking run tp @s ~ ~1.6 ~ -45 5");
+
+        // Taiga over all 7x7 simulated cells: a warm neighbour would keep the middle warm.
+        int lastFill = fillBiome(45, "minecraft:old_growth_spruce_taiga", 3);
+        command(lastFill + 1, "climora resample 3");
+        // Early morning under rain: cooled by the rain to just above freezing.
+        command(lastFill + 2, "time set 1000");
+        command(lastFill + 5, "climora weather rain 3 60000");
+        command(lastFill + 10, "tick sprint 12000");
+        command(lastFill + 220, "climora temperature");
+        screenshot(lastFill + 230, "i01-sleet");
+
+        // Before dawn, the coldest hour, and a warm front overrunning the cold ground air.
+        command(lastFill + 240, "time set 20000");
+        command(lastFill + 242, "climora weather freezing_rain 3 60000");
+        command(lastFill + 245, "tick sprint 12000");
+        command(lastFill + 450, "climora temperature");
+        command(lastFill + 451, "climora cell");
+        onServer(lastFill + 455, "glaze after freezing rain", level -> countAround(level, playerPos(), 24, 12,
+                state -> state.is(ClimoraRegistries.GLAZE.get())));
+        command(lastFill + 460, "tp @s ~ ~ ~ -45 50");
+        screenshot(lastFill + 480, "i02-glaze");
+
+        // A clear, sunny day: the glaze melts.
+        command(lastFill + 490, "time set 6000");
+        command(lastFill + 491, "climora weather clear 3 60000");
+        command(lastFill + 495, "tick sprint 8000");
+        command(lastFill + 660, "climora temperature");
+        onServer(lastFill + 665, "glaze after a sunny day", level -> countAround(level, playerPos(), 24, 12,
+                state -> state.is(ClimoraRegistries.GLAZE.get())));
+        action(lastFill + 680, "quit", Minecraft::stop);
+    }
+
     /** Turns the area into tundra, snows on it, freezes a pond, then thaws everything by making it warm again. */
     private static void buildSnowScenario() {
         action(1, "small GUI", minecraft -> {
@@ -205,13 +618,100 @@ public final class DevHarness {
      * @return the tick of the last command
      */
     private static int fillBiome(int firstTick, String biome) {
+        return fillBiome(firstTick, biome, 1);
+    }
+
+    /** Same over the cells within {@code radiusCells} of cell (0, 0). */
+    private static int fillBiome(int firstTick, String biome, int radiusCells) {
         int tick = firstTick;
-        for (int x = -128; x < 256; x += 64) {
-            for (int z = -128; z < 256; z += 64) {
+        int from = -128 * radiusCells;
+        int to = 128 * (radiusCells + 1);
+        for (int x = from; x < to; x += 64) {
+            for (int z = from; z < to; z += 64) {
                 command(tick++, String.format("fillbiome %d ~-4 %d %d ~3 %d %s", x, z, x + 63, z + 63, biome));
             }
         }
         return tick - 1;
+    }
+
+    private static void send(Minecraft minecraft, String command) {
+        Climora.LOGGER.info("[Harness] /{}", command);
+        minecraft.player.connection.sendCommand(command);
+    }
+
+    /** Runs a check on the integrated server thread and logs what it returns. */
+    private static void onServer(int tick, String description, Function<ServerLevel, String> probe) {
+        steps.add(new Step(tick, description, minecraft -> {
+            IntegratedServer server = minecraft.getSingleplayerServer();
+            if (server != null) {
+                server.execute(() -> Climora.LOGGER.info("[Harness] {}: {}", description, probe.apply(server.overworld())));
+            }
+        }));
+    }
+
+    /** What the client sees: whether it draws our clouds and what it knows about the weather over the camera. */
+    private static void reportClientWeather(Minecraft minecraft) {
+        ClientWeather weather = ClientWeather.INSTANCE;
+        double x = minecraft.player.getX();
+        double z = minecraft.player.getZ();
+        Climora.LOGGER.info("[Harness] client: active={} ourClouds={} curtains={} cloud={} rain={} fog={} rainLevel={}",
+                weather.isActive(), CloudRenderer.replacesVanilla(),
+                net.krona.climora.client.PrecipitationRenderer.lastDistantCurtains(),
+                String.format(java.util.Locale.ROOT, "%.2f", weather.cloudCover(x, z)),
+                String.format(java.util.Locale.ROOT, "%.2f", weather.precipitation(x, z)),
+                String.format(java.util.Locale.ROOT, "%.2f", weather.fog(x, z)),
+                String.format(java.util.Locale.ROOT, "%.2f", weather.rainLevel(1.0F)));
+    }
+
+    private static BlockPos playerPos() {
+        return Minecraft.getInstance().player.blockPosition();
+    }
+
+    private static ClimateSimulation simulation(ServerLevel level) {
+        return ClimateManager.get(level);
+    }
+
+    /** A 5x5 floor of planks in the open with fire on every block. */
+    private static void buildFireRig(ServerLevel level, BlockPos center) {
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                level.setBlockAndUpdate(center.offset(dx, 0, dz), Blocks.OAK_PLANKS.defaultBlockState());
+            }
+        }
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                level.setBlockAndUpdate(center.offset(dx, 1, dz), Blocks.FIRE.defaultBlockState());
+            }
+        }
+    }
+
+    private static String fireReport(ServerLevel level, BlockPos center) {
+        int fire = 0;
+        int planks = 0;
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int dy = -1; dy <= 2; dy++) {
+                    BlockState state = level.getBlockState(center.offset(dx, dy, dz));
+                    if (state.is(Blocks.FIRE)) {
+                        fire++;
+                    } else if (state.is(Blocks.OAK_PLANKS)) {
+                        planks++;
+                    }
+                }
+            }
+        }
+        return fire + " fire blocks burning, " + planks + " of 25 planks left";
+    }
+
+    /** Counts blocks matching a test in a box around a position. */
+    private static String countAround(ServerLevel level, BlockPos center, int radius, int height, Predicate<BlockState> test) {
+        int count = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-radius, -height, -radius), center.offset(radius, height, radius))) {
+            if (test.test(level.getBlockState(pos))) {
+                count++;
+            }
+        }
+        return count + " in " + (radius * 2 + 1) + "x" + (radius * 2 + 1) + " around " + center.toShortString();
     }
 
     private static void command(int tick, String command) {
@@ -235,7 +735,9 @@ public final class DevHarness {
         LevelSettings settings = new LevelSettings(WORLD_NAME, GameType.CREATIVE, false, Difficulty.PEACEFUL, true,
                 rules, WorldDataConfiguration.DEFAULT);
         minecraft.createWorldOpenFlows().createFreshLevel(WORLD_NAME, settings, new WorldOptions(WORLD_SEED, false, false),
-                WorldPresets::createNormalWorldDimensions, new TitleScreen());
+                registries -> preset == null ? WorldPresets.createNormalWorldDimensions(registries)
+                        : registries.registryOrThrow(Registries.WORLD_PRESET).getHolderOrThrow(preset).value().createWorldDimensions(),
+                new TitleScreen());
     }
 
     private static void tick(Minecraft minecraft) {

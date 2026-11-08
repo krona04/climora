@@ -6,7 +6,7 @@
 
 > ⚠️ **EARLY DEVELOPMENT WARNING**
 >
-> This mod is currently in **Early Access (v0.1)** — the first public release. Features are subject to change and bugs may occur.
+> This mod is currently in **Early Access (v0.2)**. Features are subject to change and bugs may occur.
 >
 > * **Loaders:** NeoForge & Fabric
 > * **Minecraft Version:** 1.21.1
@@ -51,6 +51,16 @@ The result is that weather is **local**. It can rain on one side of a lake and n
 - **Overcast Means Overcast** — Where it rains, the sky above is shut. Rain never falls out of a blue gap.
 - **Rain or Snow** — Decided by the air temperature at that spot, not by the biome, so it snows above the freezing line in mountains that would rain lower down.
 
+### 🌧️ Precipitation
+- **Drizzle to Downpour** — Rain looks like its intensity: drizzle is sparse, slow and quiet, a downpour is dense, fast and loud and hides the distance.
+- **Sleet** — Just above freezing, rain and wet snow fall together.
+- **Hail** — The strongest thunderstorms drop ice pellets that shatter on the ground. Hurting players and mobs is a separate option, **off by default**.
+- **Freezing Rain** — When warm air blows in aloft over frozen ground, snow melts on the way down and the drops freeze on whatever they hit. The ground gets a **glaze of ice as slippery as ice** that melts once it warms up. It happens on its own where warm air meets a cold region.
+- **Distant Showers** — A shower in the distance stands as a grey curtain of rain from its cloud to the ground, leaning with the wind. You can watch it come.
+- **Fog** — On still, humid, clear nights the ground air cools below its dew point and fog settles in the lowlands, then burns off in the morning sun.
+- **Puddles** — Steady rain fills the hollows of natural ground with puddles that join into one sheet of water, dry out after the rain and freeze over in frost.
+- **Grey Skies** — A closed cloud deck greys the sky and hides the sun, not only rain.
+
 ### ⛈️ Thunderstorms
 - Storms build on their own where warm, very humid air is forced upwards — by a low, or by afternoon heating.
 - **Local Lightning** strikes only inside storm cells and only where rain is falling. Lightning rods and target selection work as in vanilla.
@@ -65,8 +75,22 @@ The result is that weather is **local**. It can rain on one side of a lake and n
 - Put a **comparator** next to it to read the wind speed on the **Beaufort scale** as a redstone signal of 0–15.
 
 ### 🔗 Vanilla Integration
-- Local weather drives the vanilla systems: mobs get wet, fires go out, cauldrons fill, snow settles.
+- Local weather drives the vanilla systems: mobs get wet, cauldrons fill, snow settles, farmland is watered.
+- **Rain puts out fires** and keeps them from spreading, where it rains.
+- **Beds work in a thunderstorm** when the storm is over the bed.
+- **Bees** head home and stay in the hive while it rains over them; **monsters** spawn in the gloom of a storm; **foxes** and **pandas** react to thunder overhead.
+- Data-pack loot conditions on the weather ask about the weather where the loot drops.
 - Vanilla `/weather clear|rain|thunder` turns on local weather within about 4 km of the player. Can be switched off.
+
+### 🌍 Climate Belts World Type
+- A new world type, **Climate Belts**, lays biomes out by latitude like on Earth: the equator runs along **z = 0** and the poles are **10 000 blocks** north and south of it.
+- Rainforest at the equator, deserts and badlands in the subtropics, savanna, then temperate forests, taiga and tundra, and **past the poles nothing but snow and ice**.
+- Belt borders stay ragged and every belt keeps patches of its neighbours, so it does not look like a striped map.
+- Terrain, caves and structures stay vanilla. The default world type is untouched.
+
+### 🔮 Forecast
+- `/climora forecast` tells what the next 12 in-game hours bring: pressure and its trend, sky, rain or snow, thunderstorms. The pressure part is exact — the weather systems are known in advance; rain is estimated from the air upwind.
+- **Weather Speed** — One setting makes weather develop faster or slower, from ×0.25 to ×8, without touching the day or the wind speeds.
 
 ### 🐛 Debug
 - An **F3 overlay** with the air temperature where you stand, the state of your cell and the simulation load. Works in singleplayer and on servers running the mod.
@@ -82,14 +106,15 @@ All commands require **permission level 2**.
 | Command | Description |
 |---|---|
 | `/climora temperature [pos]` | Air temperature at a position |
-| `/climora cell [pos]` | A cell's state: mean temperature, daily swing, pressure, humidity, cloud, rain |
-| `/climora stats` | Cell counts and simulation load |
+| `/climora cell [pos]` | A cell's state: temperature, pressure, humidity, cloud, rain, hail, air aloft, wet ground, fog |
+| `/climora forecast [pos]` | What the weather does in the next 1, 3, 6 and 12 in-game hours |
+| `/climora stats` | Cell counts, simulation load and how often it rained, stormed and hailed |
 
 ### Controlling the Weather
 
 | Command | Description |
 |---|---|
-| `/climora weather clear\|cloudy\|rain\|storm [radius] [seconds]` | Force weather over a radius, measured in cells |
+| `/climora weather clear\|cloudy\|fog\|drizzle\|rain\|downpour\|storm\|freezing_rain [radius] [seconds]` | Force weather over a radius, measured in cells |
 | `/climora weather auto` | Hand control back to the simulation |
 | `/weather clear\|rain\|thunder` | Vanilla command, redirected to local weather within ~4 km |
 
@@ -108,6 +133,8 @@ All commands require **permission level 2**.
 | Block | Recipe | Description |
 |---|---|---|
 | Weather Vane | 4 copper ingots + 1 iron ingot | Points into the wind; a comparator reads its strength on the Beaufort scale (0–15) |
+| Glaze Ice | — (made by freezing rain) | A pixel-thin crust of ice; slippery, melts above freezing, drops nothing |
+| Puddle | — (made by rain) | Rain water in a hollow; joins its neighbours, dries out, freezes over; anything placed replaces it |
 
 ```
 C C C      C = copper ingot
@@ -117,23 +144,18 @@ C C C      C = copper ingot
 
 ---
 
-## 🖥️ Multiplayer
-
-Install the mod on the server and require it of clients.
-
-- A player **without** Climora on a server **with** it will never see rain — the mod turns off the vanilla global cycle, and that player has nothing to replace it with.
-- A client **with** Climora on a server **without** it falls back to ordinary vanilla weather.
-
----
 
 ## 🌍 Localization
 
-| Language | Code |
-|---|---|
-| English | `en_us` |
-| Russian | `ru_ru` |
+Fully localized in twenty languages — command output, block names, death messages and the world type follow the player's language setting:
 
-Translations for more languages are welcome.
+| | | | |
+|---|---|---|---|
+| English `en_us` | Russian `ru_ru` | Ukrainian `uk_ua` | Polish `pl_pl` |
+| German `de_de` | French `fr_fr` | Spanish `es_es` | Portuguese (Brazil) `pt_br` |
+| Portuguese (Portugal) `pt_pt` | Italian `it_it` | Chinese (Simplified) `zh_cn` | Japanese `ja_jp` |
+| Korean `ko_kr` | Chinese (Traditional) `zh_tw` | Turkish `tr_tr` | Dutch `nl_nl` |
+| Czech `cs_cz` | Swedish `sv_se` | Vietnamese `vi_vn` | Indonesian `id_id` |
 
 ---
 

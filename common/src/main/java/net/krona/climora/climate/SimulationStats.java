@@ -16,6 +16,13 @@ public final class SimulationStats {
     private long overBudgetTicksTotal;
     private long lightningStrikesTotal;
 
+    // How much of the simulated time each kind of weather took, weighted by the ticks each update covered.
+    private long weatherTicksTotal;
+    private long rainTicksTotal;
+    private long stormTicksTotal;
+    private long hailTicksTotal;
+    private long freezingRainTicksTotal;
+
     void recordTick(long nanos, int created, int updated, boolean overBudget) {
         tickNanos[index] = nanos;
         cellUpdates[index] = updated;
@@ -34,6 +41,47 @@ public final class SimulationStats {
 
     public void recordLightningStrike() {
         lightningStrikesTotal++;
+    }
+
+    /** One cell update covering {@code ticks} of game time with the given weather. */
+    void recordWeather(long ticks, boolean rain, boolean storm, boolean hail, boolean freezingRain) {
+        if (ticks <= 0) {
+            return;
+        }
+        weatherTicksTotal += ticks;
+        if (rain) {
+            rainTicksTotal += ticks;
+        }
+        if (storm) {
+            stormTicksTotal += ticks;
+        }
+        if (hail) {
+            hailTicksTotal += ticks;
+        }
+        if (freezingRain) {
+            freezingRainTicksTotal += ticks;
+        }
+    }
+
+    /** Share of simulated cell time with precipitation since the server started, 0..1, or NaN without data. */
+    public double rainShare() {
+        return share(rainTicksTotal);
+    }
+
+    public double stormShare() {
+        return share(stormTicksTotal);
+    }
+
+    public double hailShare() {
+        return share(hailTicksTotal);
+    }
+
+    public double freezingRainShare() {
+        return share(freezingRainTicksTotal);
+    }
+
+    private double share(long ticks) {
+        return weatherTicksTotal == 0 ? Double.NaN : ticks / (double) weatherTicksTotal;
     }
 
     public long lightningStrikesTotal() {

@@ -11,7 +11,7 @@ import net.minecraft.resources.ResourceLocation;
  * A payload with {@code size == 0} tells the client to use vanilla weather.
  * <p>
  * Cells are listed row by row: index {@code dz * size + dx} for cell {@code (originX + dx, originZ + dz)}.
- * Values are quantised to bytes, about 10 bytes per cell.
+ * Values are quantised to bytes, about 17 bytes per cell.
  *
  * @param gameTime      server game time when the payload was built
  * @param originX       cell X of the first column
@@ -19,7 +19,7 @@ import net.minecraft.resources.ResourceLocation;
  * @param size          number of cells per side
  * @param cloudOffsetX  how far the weather systems have drifted since the world was created, blocks
  * @param cloudOffsetZ  see {@code cloudOffsetX}
- * @param driftX        current drift velocity of the weather systems, blocks per tick
+ * @param driftX        current drift velocity of the weather systems, blocks per game tick (includes weatherSpeed)
  * @param driftZ        see {@code driftX}
  */
 public record LocalWeatherPayload(
@@ -45,12 +45,20 @@ public record LocalWeatherPayload(
     /**
      * Weather of one cell. {@code present == false} means the server has not sampled it yet.
      *
-     * @param windX near-ground wind, m/s
+     * @param windX             near-ground wind, m/s
+     * @param columnTemperature air aloft at the cell elevation, °C, or NaN if unknown
+     * @param baseTemperature   daily mean of the cell from its biomes, °C: with {@code baseAmplitude} the
+     *                          client corrects the cell average for the biome at a position, as the server does
      */
     public record Cell(boolean present, float temperature, int elevation, float humidity, float cloudCover,
-                       float precipitation, float storm, float windX, float windZ) {
-        public static final Cell MISSING = new Cell(false, 0.0F, 0, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F);
+                       float precipitation, float storm, float windX, float windZ, float columnTemperature,
+                       float hail, float fog, float baseTemperature, float baseAmplitude) {
+        public static final Cell MISSING = new Cell(false, 0.0F, 0, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, Float.NaN, 0.0F, 0.0F,
+                Float.NaN, Float.NaN);
     }
+
+    /** Short value that marks an unknown temperature; real ones stay within ±3000 (±300 °C). */
+    private static final short UNKNOWN_TEMPERATURE = Short.MIN_VALUE;
 
     public static LocalWeatherPayload inactive() {
         return new LocalWeatherPayload(0L, 0, 0, 0, 0.0, 0.0, 0.0F, 0.0F, new Cell[0]);
@@ -82,6 +90,13 @@ public record LocalWeatherPayload(
             buf.writeByte(unit(cell.storm));
             buf.writeByte(Math.max(-127, Math.min(127, Math.round(cell.windX * 3.0F))));
             buf.writeByte(Math.max(-127, Math.min(127, Math.round(cell.windZ * 3.0F))));
+            buf.writeShort(Float.isNaN(cell.columnTemperature) ? UNKNOWN_TEMPERATURE
+                    : Math.max(-3000, Math.min(3000, Math.round(cell.columnTemperature * 10.0F))));
+            buf.writeByte(unit(cell.hail));
+            buf.writeByte(unit(cell.fog));
+            buf.writeShort(Float.isNaN(cell.baseTemperature) ? UNKNOWN_TEMPERATURE
+                    : Math.max(-3000, Math.min(3000, Math.round(cell.baseTemperature * 10.0F))));
+            buf.writeByte(Float.isNaN(cell.baseAmplitude) ? 255 : Math.max(0, Math.min(254, Math.round(cell.baseAmplitude * 10.0F))));
         }
     }
 
@@ -103,15 +118,22 @@ public record LocalWeatherPayload(
                 cells[i] = Cell.MISSING;
                 continue;
             }
-            cells[i] = new Cell(true,
-                    buf.readShort() / 10.0F,
-                    buf.readShort(),
-                    buf.readUnsignedByte() / 255.0F * 1.25F,
-                    buf.readUnsignedByte() / 255.0F,
-                    buf.readUnsignedByte() / 255.0F,
-                    buf.readUnsignedByte() / 255.0F,
-                    buf.readByte() / 3.0F,
-                    buf.readByte() / 3.0F);
+            float temperature = buf.readShort() / 10.0F;
+            int elevation = buf.readShort();
+            float humidity = buf.readUnsignedByte() / 255.0F * 1.25F;
+            float cloudCover = buf.readUnsignedByte() / 255.0F;
+            float precipitation = buf.readUnsignedByte() / 255.0F;
+            float storm = buf.readUnsignedByte() / 255.0F;
+            float windX = buf.readByte() / 3.0F;
+            float windZ = buf.readByte() / 3.0F;
+            short column = buf.readShort();
+            float hail = buf.readUnsignedByte() / 255.0F;
+            float fog = buf.readUnsignedByte() / 255.0F;
+            short base = buf.readShort();
+            int amplitude = buf.readUnsignedByte();
+            cells[i] = new Cell(true, temperature, elevation, humidity, cloudCover, precipitation, storm, windX, windZ,
+                    column == UNKNOWN_TEMPERATURE ? Float.NaN : column / 10.0F, hail, fog,
+                    base == UNKNOWN_TEMPERATURE ? Float.NaN : base / 10.0F, amplitude == 255 ? Float.NaN : amplitude / 10.0F);
         }
         return new LocalWeatherPayload(gameTime, originX, originZ, size, cloudOffsetX, cloudOffsetZ, driftX, driftZ, cells);
     }

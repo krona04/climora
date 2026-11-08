@@ -60,15 +60,18 @@ public final class LocalWeatherSync {
                 cells[dz * size + dx] = cell == null || !cell.isFullySampled()
                         ? LocalWeatherPayload.Cell.MISSING
                         : new LocalWeatherPayload.Cell(true, cell.temperature(), cell.elevation(), cell.relativeHumidity(),
-                        cell.cloudCover(), cell.precipitation(), cell.storm(), cell.windX(), cell.windZ());
+                        cell.cloudCover(), cell.precipitation(), cell.storm(), cell.windX(), cell.windZ(),
+                        ClimoraConfig.server().freezingRain ? cell.columnTemperature() : Float.NaN, cell.hail(), cell.fog(),
+                        cell.baseTemperature(), cell.baseAmplitude());
             }
         }
 
+        double weatherTime = simulation.weatherTime();
         return new LocalWeatherPayload(gameTime, originX, originZ, size,
-                simulation.synoptic().driftOffsetX(gameTime),
-                simulation.synoptic().driftOffsetZ(gameTime),
-                (float) simulation.synoptic().driftVelocityX(gameTime),
-                (float) simulation.synoptic().driftVelocityZ(gameTime),
+                simulation.synoptic().driftOffsetX(weatherTime),
+                simulation.synoptic().driftOffsetZ(weatherTime),
+                (float) simulation.driftPerGameTickX(),
+                (float) simulation.driftPerGameTickZ(),
                 cells);
     }
 }

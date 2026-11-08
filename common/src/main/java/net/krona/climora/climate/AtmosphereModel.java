@@ -44,6 +44,42 @@ public final class AtmosphereModel {
     public static final float SNOW_TEMPERATURE = 0.0F;
     public static final float RAIN_TEMPERATURE = 2.0F;
 
+    // --- Air aloft (0.2) ----------------------------------------------------------------------
+
+    /**
+     * Time for the air aloft to take on the temperature of the ground under it, ticks (5 in-game hours).
+     * Until then it keeps the temperature of the place it blew in from, so warm air carried over cold
+     * ground stays warm for several cells: that is how freezing rain happens.
+     */
+    public static final float COLUMN_ADJUST_TICKS = 5000.0F;
+
+    // --- Hail (0.2) ---------------------------------------------------------------------------
+
+    /**
+     * Hail needs this much storm and this much lift. It also needs air clearly above freezing at the
+     * ground, or the stones arrive as soft graupel; how warm and unstable the air is aloft is already in
+     * the storm intensity.
+     */
+    public static final float HAIL_MIN_STORM = 0.6F;
+    public static final float HAIL_MIN_LIFT = 0.6F;
+    public static final float HAIL_MIN_TEMPERATURE = 4.0F;
+    /** Even the strongest storm drops hail at most this hard, 0..1. */
+    public static final float HAIL_MAX = 0.8F;
+
+    // --- Fog (0.2) ----------------------------------------------------------------------------
+
+    /** Relative humidity near the ground at which the dew excess starts to hang in the air as fog. */
+    public static final float FOG_START_HUMIDITY = 1.02F;
+    /** At this supersaturation the fog is as thick as it gets. */
+    public static final float FOG_FULL_HUMIDITY = 1.3F;
+
+    // --- Wet ground (0.2) ---------------------------------------------------------------------
+
+    /** Time for rain to soak the ground, ticks. */
+    public static final float WETTING_TIME_TICKS = 1200.0F;
+    /** Time for wet ground to dry in mild weather (15 °C, humidity 0.6, light wind), ticks. */
+    public static final float DRYING_TIME_TICKS = 6000.0F;
+
     // --- Wind ---------------------------------------------------------------------------------
 
     /** Weather systems drift at the steering wind. Blocks per tick of drift for 1 m/s of wind. */
@@ -55,7 +91,12 @@ public final class AtmosphereModel {
     public static final double MAX_WIND_SPEED = 32.0;
 
     public enum PrecipitationType {
-        NONE, RAIN, SLEET, SNOW
+        NONE, RAIN, SLEET, SNOW, FREEZING_RAIN;
+
+        /** Drops of water, as opposed to snow: wets things, puts out fires, makes the rain sound. */
+        public boolean isLiquid() {
+            return this == RAIN || this == SLEET || this == FREEZING_RAIN;
+        }
     }
 
     private AtmosphereModel() {
@@ -150,6 +191,70 @@ public final class AtmosphereModel {
             return PrecipitationType.SNOW;
         }
         return temperature <= RAIN_TEMPERATURE ? PrecipitationType.SLEET : PrecipitationType.RAIN;
+    }
+
+    /**
+     * Precipitation type from the air at the ground and the air aloft where it forms.
+     * <p>
+     * Snow that falls through warm air aloft melts into rain; if the ground air is below freezing, the
+     * drops arrive supercooled and freeze on whatever they hit. Everything else follows the ground air.
+     *
+     * @param column temperature of the air aloft at the same height, °C, or NaN if unknown
+     */
+    public static PrecipitationType precipitationType(float surface, float column) {
+        if (surface <= SNOW_TEMPERATURE && !Float.isNaN(column) && column >= RAIN_TEMPERATURE) {
+            return PrecipitationType.FREEZING_RAIN;
+        }
+        return precipitationType(surface);
+    }
+
+    /**
+     * Temperature of the air aloft a cell tends to on its own: its daily mean, cooled by precipitation.
+     * The ground air swings around it by day and night; the air aloft does not.
+     */
+    public static float columnEquilibrium(float baseTemperature, float precipitation) {
+        return baseTemperature - PRECIPITATION_COOLING * precipitation;
+    }
+
+    /**
+     * Hail intensity the cell tends to, 0..HAIL_MAX. Hailstones grow in the strongest updrafts of
+     * thunderstorms, so hail needs a strong storm and strong lift at once, and air above freezing below.
+     */
+    public static float hailTarget(float storm, float lift, float temperature) {
+        return HAIL_MAX * smoothstep(HAIL_MIN_STORM, 1.0F, storm)
+                * smoothstep(HAIL_MIN_LIFT, 1.0F, lift)
+                * smoothstep(HAIL_MIN_TEMPERATURE, HAIL_MIN_TEMPERATURE + 6.0F, temperature);
+    }
+
+    /**
+     * Radiation fog, 0..1. On a clear, calm night the ground air cools below its dew point and the excess
+     * water hangs in the air. Wind mixes it away, clouds keep the ground from cooling, and rain washes it out.
+     *
+     * @param surfaceHumidity relative humidity of the ground air, not capped at 1: the excess is the fog
+     */
+    public static float fog(float surfaceHumidity, float windSpeed, float cloudCover, float precipitation) {
+        if (precipitation >= OVERCAST_PRECIPITATION) {
+            return 0.0F;
+        }
+        return smoothstep(FOG_START_HUMIDITY, FOG_FULL_HUMIDITY, surfaceHumidity)
+                * (1.0F - smoothstep(2.0F, 6.0F, windSpeed))
+                * (1.0F - smoothstep(0.4F, 0.9F, cloudCover));
+    }
+
+    /** How wet the ground tends to get under precipitation of this intensity, 0..1. */
+    public static float wetnessTarget(float precipitation) {
+        return smoothstep(0.05F, 0.5F, precipitation);
+    }
+
+    /**
+     * Time for wet ground to dry, ticks. Warm, dry and windy air dries it fast; frozen ground barely
+     * dries at all, so a puddle that froze stays frozen.
+     */
+    public static float dryingTime(float temperature, float humidity, float windSpeed) {
+        float warmth = 0.5F + Math.max(0.0F, Math.min(35.0F, temperature)) / 20.0F;
+        float wind = 1.0F + Math.max(0.0F, windSpeed) / 8.0F;
+        float dampness = 0.4F + clamp01(humidity);
+        return DRYING_TIME_TICKS * dampness / (warmth * wind);
     }
 
     public static float smoothstep(float edge0, float edge1, float value) {

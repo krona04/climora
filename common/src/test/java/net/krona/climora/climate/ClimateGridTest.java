@@ -114,6 +114,56 @@ class ClimateGridTest {
     }
 
     @Test
+    void airAloftWetGroundAndWeatherClockSurviveSaveAndLoad() {
+        ClimateGrid grid = singleCellGrid();
+        grid.get(CellPos.key(0, 0)).setGround(7.5F, 0.4F);
+        grid.setWeatherTime(123_456.75);
+
+        ClimateGrid loaded = ClimateGrid.load(grid.save(new CompoundTag(), null), null);
+        ClimateCell cell = loaded.get(CellPos.key(0, 0));
+
+        assertNotNull(cell);
+        assertEquals(7.5F, cell.columnTemperature());
+        assertEquals(0.4F, cell.wetness());
+        assertEquals(123_456.75, loaded.weatherTime());
+    }
+
+    @Test
+    void version4DataGetsDryGroundAndStartsTheWeatherClockLater() {
+        CompoundTag v4 = singleCellGrid().save(new CompoundTag(), null);
+        v4.putInt(ClimateGrid.TAG_DATA_VERSION, 4);
+        v4.remove(ClimateGrid.TAG_COLUMN_TEMPERATURE);
+        v4.remove(ClimateGrid.TAG_WETNESS);
+        v4.remove(ClimateGrid.TAG_WEATHER_TIME);
+
+        ClimateGrid grid = ClimateGrid.load(v4, null);
+        ClimateCell cell = grid.get(CellPos.key(0, 0));
+
+        assertNotNull(cell);
+        assertFalse(cell.isFullySampled(), "re-sampled on the way through version 6 (snow profiles)");
+        assertTrue(Float.isNaN(cell.columnTemperature()), "air aloft starts at the cell's own equilibrium");
+        assertEquals(0.0F, cell.wetness());
+        assertTrue(Double.isNaN(grid.weatherTime()), "the simulation starts the clock at the game time");
+        assertEquals(10.0F, cell.temperature(), 1.0E-3F);
+    }
+
+    @Test
+    void version5DataIsResampledForTheSnowProfiles() {
+        ClimateGrid grid = singleCellGrid();
+        grid.get(CellPos.key(0, 0)).setGround(4.0F, 0.6F);
+        CompoundTag v5 = grid.save(new CompoundTag(), null);
+        v5.putInt(ClimateGrid.TAG_DATA_VERSION, 5);
+
+        ClimateCell cell = ClimateGrid.load(v5, null).get(CellPos.key(0, 0));
+
+        assertNotNull(cell);
+        assertFalse(cell.isFullySampled(), "base climate is sampled again");
+        assertEquals(10.0F, cell.temperature(), 1.0E-3F);
+        assertEquals(4.0F, cell.columnTemperature(), "the weather of the cell stays");
+        assertEquals(0.6F, cell.wetness());
+    }
+
+    @Test
     void dataFromNewerVersionIsKeptUntouched() {
         CompoundTag future = new CompoundTag();
         future.putInt(ClimateGrid.TAG_DATA_VERSION, ClimateGrid.DATA_VERSION + 1);

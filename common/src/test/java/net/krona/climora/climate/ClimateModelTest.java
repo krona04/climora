@@ -6,6 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClimateModelTest {
+    @Test
+    void relaxingOverWeatherTimeMatchesWholeTicks() {
+        assertEquals(ClimateModel.relax(10.0F, 20.0F, 300L, 600.0F), ClimateModel.relax(10.0F, 20.0F, 300.0, 600.0F), 1.0E-5F);
+        // Weather time runs faster than game time: 4x the speed covers 4x the ticks.
+        assertEquals(ClimateModel.relax(10.0F, 20.0F, 1200L, 600.0F), ClimateModel.relax(10.0F, 20.0F, 300 * 4.0, 600.0F), 1.0E-5F);
+        assertEquals(10.0F, ClimateModel.relax(10.0F, 20.0F, 0.0, 600.0F));
+    }
+
     private static final float EPSILON = 1.0E-3F;
 
     @Test
