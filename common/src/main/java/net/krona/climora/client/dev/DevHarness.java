@@ -93,8 +93,12 @@ public final class DevHarness {
             case "distant" -> buildDistantScenario();
             case "winter" -> buildWinterScenario();
             case "belts" -> buildBeltsScenario();
+            case "particlerain" -> buildParticleRainScenario();
+            case "hail" -> buildHailScenario();
+            case "rainsound" -> buildRainSoundScenario();
+            case "hailedge" -> buildHailEdgeScenario();
             default -> {
-                Climora.LOGGER.error("[Harness] Unknown scenario '{}'. Use weather, snow, precip, ice, climate, jungle, distant, winter or belts.", scenario);
+                Climora.LOGGER.error("[Harness] Unknown scenario '{}'. Use weather, snow, precip, ice, climate, jungle, distant, winter, belts, particlerain, hail, rainsound or hailedge.", scenario);
                 return;
             }
         }
@@ -215,7 +219,7 @@ public final class DevHarness {
         screenshot(290, "p02-downpour");
         command(295, "climora temperature");
 
-        command(300, "climora weather storm 4 30000");
+        command(300, "climora weather hail 4 30000");
         command(305, "tick sprint 600");
         command(420, "tp @s ~ ~ ~ -45 45");
         screenshot(440, "p03-hail");
@@ -467,6 +471,237 @@ public final class DevHarness {
                 .forEach(entry -> top.append(' ').append(entry.getKey()).append('=').append(entry.getValue()));
         return String.format(java.util.Locale.ROOT, "frozen %d%%, hot %d%%,%s | not frozen: %s",
                 frozen * 100 / points, hot * 100 / points, top, thawed);
+    }
+
+    /**
+     * Rain sounds around a downpour in cell (2, 0) with clear sky around it: inside, at its edge, about 30 blocks
+     * from it and far away. Every weather sound is logged with its event, volume and distance from the camera.
+     * With Sound Physics Remastered ({@code -PclimoraCompat=soundphysics}) the events should be Climora's spatial ones.
+     */
+    private static void buildRainSoundScenario() {
+        action(1, "listen to weather sounds", minecraft -> minecraft.getSoundManager().addListener((sound, events, range) -> {
+            String id = sound.getLocation().toString();
+            if (id.contains("rain") || id.contains("hail")) {
+                double dx = sound.getX() - minecraft.player.getX();
+                double dz = sound.getZ() - minecraft.player.getZ();
+                weatherSounds.add(String.format(java.util.Locale.ROOT, "%s v%.2f p%.2f %+.0f/%+.0f", id, sound.getVolume(), sound.getPitch(), dx, dz));
+            }
+        }));
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        command(22, "time set 6000");
+        command(23, "gamemode spectator");
+        command(25, "execute positioned 320 110 64 run climora weather clear 6 30000");
+        command(27, "execute positioned 320 110 64 run climora weather downpour 0 30000");
+        command(28, "tp @s 320 120 64 -90 10");
+        command(30, "tick sprint 600");
+        String[][] spots = {{"inside the downpour", "320"}, {"dry, rain from ~11 blocks east", "192"},
+                {"dry, rain from ~33 blocks east", "170"}, {"dry, rain ~80 blocks east", "120"}};
+        int tick = 200;
+        for (String[] spot : spots) {
+            command(tick, "execute positioned " + spot[1] + " 0 64 positioned over motion_blocking run tp @s ~ ~2 ~ -90 5");
+            action(tick + 20, "start listening: " + spot[0], minecraft -> weatherSounds.clear());
+            action(tick + 120, "weather sounds: " + spot[0], minecraft -> {
+                java.util.Map<String, Integer> byEvent = new java.util.TreeMap<>();
+                weatherSounds.forEach(line -> byEvent.merge(line.substring(0, line.indexOf(' ')), 1, Integer::sum));
+                Climora.LOGGER.info("[Harness] weather sounds, {}: {} in 100 ticks {}; e.g. {}", spot[0], weatherSounds.size(), byEvent,
+                        weatherSounds.stream().limit(3).toList());
+            });
+            tick += 140;
+        }
+        action(tick + 10, "quit", Minecraft::stop);
+    }
+
+    private static final List<String> weatherSounds = new ArrayList<>();
+
+    /**
+     * Hail forced in cell (2, 0) with clear sky around it, seen from its middle, its edge and the faint tail
+     * the blending between cells leaves outside it. Logs the hail the client knows at the camera and how many
+     * shards hit the ground and hail sounds played in 100 ticks: where the stones are too faint to see, neither.
+     */
+    private static void buildHailEdgeScenario() {
+        action(1, "listen to weather sounds", minecraft -> minecraft.getSoundManager().addListener((sound, events, range) -> {
+            if (sound.getLocation().getPath().contains("hail")) {
+                weatherSounds.add(sound.getLocation().toString());
+            }
+        }));
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        command(22, "time set 6000");
+        command(23, "gamemode spectator");
+        command(25, "execute positioned 320 110 64 run climora weather clear 6 30000");
+        command(27, "execute positioned 320 110 64 run climora weather hail 0 30000");
+        command(28, "tp @s 320 120 64 -90 30");
+        command(30, "tick sprint 600");
+        int tick = 200;
+        for (int x : new int[] {320, 270, 240, 220, 200}) {
+            command(tick, "execute positioned " + x + " 0 64 positioned over motion_blocking run tp @s ~ ~2 ~ -90 30");
+            action(tick + 20, "start counting at x=" + x, minecraft -> {
+                weatherSounds.clear();
+                shardsAtStart = countShards(minecraft);
+                shardsSeen = 0;
+            });
+            for (int t = tick + 21; t < tick + 120; t++) {
+                action(t, "count shards", minecraft -> shardsSeen = Math.max(shardsSeen, countShards(minecraft)));
+            }
+            action(tick + 120, "hail at x=" + x, minecraft -> Climora.LOGGER.info(
+                    "[Harness] hail at x={}: client hail {} at the camera, up to {} shards on the ground at once, {} hail sounds in 100 ticks",
+                    x, String.format(java.util.Locale.ROOT, "%.2f",
+                            ClientWeather.INSTANCE.hail(minecraft.player.getX(), minecraft.player.getZ())),
+                    shardsSeen, weatherSounds.size()));
+            tick += 140;
+        }
+        action(tick + 10, "quit", Minecraft::stop);
+    }
+
+    private static int shardsAtStart;
+    private static int shardsSeen;
+
+    /** Snowball shards currently alive in the particle engine: the shards of hail on the ground. Dev only. */
+    @SuppressWarnings("unchecked")
+    private static int countShards(Minecraft minecraft) {
+        try {
+            java.lang.reflect.Field particles = net.minecraft.client.particle.ParticleEngine.class.getDeclaredField("particles");
+            particles.setAccessible(true);
+            int count = 0;
+            for (java.util.Collection<?> queue : ((java.util.Map<?, ? extends java.util.Collection<?>>) particles.get(minecraft.particleEngine)).values()) {
+                for (Object particle : queue) {
+                    if (particle instanceof net.minecraft.client.particle.BreakingItemParticle) {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        } catch (ReflectiveOperationException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * How often a thunderstorm hails: a strong storm forced over all 7×7 active cells at the warmest hour for 12000 ticks,
+     * then {@code /climora stats}; then forced hail over the camera, to hear it (with Sound Physics Remastered:
+     * {@code -PclimoraCompat=soundphysics}).
+     */
+    private static void buildHailScenario() {
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        // The warmest hour of the day: the most a storm can get.
+        command(22, "time set 9000");
+        command(23, "gamemode spectator");
+        command(25, "climora weather storm 3 60000");
+        command(30, "tick sprint 12000");
+        action(900, "stats after 12000 ticks of storm", minecraft -> send(minecraft, "climora stats"));
+        action(901, "cell", minecraft -> send(minecraft, "climora cell"));
+        command(905, "climora weather hail 0 60000");
+        command(910, "tick sprint 600");
+        action(1020, "cell in forced hail", minecraft -> send(minecraft, "climora cell"));
+        action(1040, "quit", Minecraft::stop);
+    }
+
+    /**
+     * With Particle Rain installed ({@code -PclimoraCompat=particlerain}): a downpour in cell (2, 0) with clear sky
+     * around it, seen from inside, from the dry side of its edge and as a drizzle, then rain forced over the nearest
+     * snowy plains. Counts Particle Rain's particles by kind, under local precipitation and outside it.
+     */
+    private static void buildParticleRainScenario() {
+        action(1, "small GUI", minecraft -> {
+            minecraft.options.guiScale().set(1);
+            minecraft.resizeDisplay();
+        });
+        command(20, "gamerule doDaylightCycle false");
+        command(21, "gamerule doMobSpawning false");
+        command(22, "time set 6000");
+        command(23, "gamemode spectator");
+        command(25, "execute positioned 320 110 64 run climora weather clear 6 30000");
+        // A fixed height first: "over motion_blocking" fails while the chunk is not loaded.
+        command(28, "tp @s 320 120 64 -90 10");
+        command(60, "execute positioned 320 0 64 positioned over motion_blocking run tp @s ~ ~3 ~ -90 10");
+        action(80, "particles, clear sky", minecraft -> logParticles("clear sky"));
+        command(85, "execute positioned 320 110 64 run climora weather downpour 0 30000");
+        command(90, "tick sprint 600");
+        action(250, "hide GUI", minecraft -> minecraft.options.hideGui = true);
+        action(260, "particles, inside the downpour", minecraft -> logParticles("inside the downpour"));
+        screenshot(261, "pr01-inside");
+        command(270, "execute positioned 192 0 64 positioned over motion_blocking run tp @s ~ ~3 ~ -90 5");
+        action(360, "particles, dry side of the edge", minecraft -> logParticles("dry side of the edge"));
+        action(361, "precipitation east of the camera", minecraft -> {
+            double x = minecraft.player.getX();
+            double z = minecraft.player.getZ();
+            StringBuilder line = new StringBuilder();
+            for (int dx = 0; dx <= 40; dx += 8) {
+                line.append(String.format(java.util.Locale.ROOT, " +%d: %.2f", dx, ClientWeather.INSTANCE.precipitation(x + dx, z)));
+            }
+            Climora.LOGGER.info("[Harness] precipitation east of the camera:{}", line);
+        });
+        screenshot(362, "pr02-edge");
+        command(370, "execute positioned 320 110 64 run climora weather drizzle 0 30000");
+        command(372, "tick sprint 600");
+        command(375, "execute positioned 320 0 64 positioned over motion_blocking run tp @s ~ ~3 ~ -90 10");
+        action(540, "particles, drizzle", minecraft -> logParticles("inside the drizzle"));
+        screenshot(541, "pr03-drizzle");
+        onServer(550, "find snowy plains", level -> {
+            var found = level.findClosestBiome3d(biome -> biome.is(net.minecraft.world.level.biome.Biomes.SNOWY_PLAINS),
+                    playerPos(), 6400, 64, 64);
+            if (found == null) {
+                return "no snowy plains within 6400 blocks";
+            }
+            pit = found.getFirst();
+            return "snowy plains at " + pit.toShortString();
+        });
+        action(570, "rain over the snowy plains", minecraft -> {
+            send(minecraft, String.format("tp @s %d 140 %d -90 10", pit.getX(), pit.getZ()));
+            send(minecraft, String.format("execute positioned %d 110 %d run climora weather rain 1 30000", pit.getX(), pit.getZ()));
+            send(minecraft, "tick sprint 600");
+        });
+        action(700, "down to the ground", minecraft -> send(minecraft, String.format(
+                "execute positioned %d 0 %d positioned over motion_blocking run tp @s ~ ~3 ~ -90 10", pit.getX(), pit.getZ())));
+        action(760, "air at the snowy plains", minecraft -> send(minecraft, "climora temperature ~ ~ ~"));
+        action(770, "particles, snowy plains", minecraft -> logParticles("rain forced over snowy plains"));
+        screenshot(771, "pr04-snow");
+        action(780, "client weather", DevHarness::reportClientWeather);
+        action(790, "quit", Minecraft::stop);
+    }
+
+    /**
+     * Particle Rain's particles by kind, split by whether the local weather has precipitation where each one is.
+     * Reflection, so this compiles and runs without Particle Rain; dev only, where the fields have Mojang's names.
+     */
+    @SuppressWarnings("unchecked")
+    private static void logParticles(String when) {
+        Minecraft minecraft = Minecraft.getInstance();
+        try {
+            int total = Class.forName("pigcart.particlerain.ParticleSpawner").getField("particleCount").getInt(null);
+            java.lang.reflect.Field particles = net.minecraft.client.particle.ParticleEngine.class.getDeclaredField("particles");
+            java.lang.reflect.Field fieldX = net.minecraft.client.particle.Particle.class.getDeclaredField("x");
+            java.lang.reflect.Field fieldZ = net.minecraft.client.particle.Particle.class.getDeclaredField("z");
+            particles.setAccessible(true);
+            fieldX.setAccessible(true);
+            fieldZ.setAccessible(true);
+            java.util.Map<String, int[]> kinds = new java.util.TreeMap<>();
+            for (java.util.Collection<?> queue : ((java.util.Map<?, ? extends java.util.Collection<?>>) particles.get(minecraft.particleEngine)).values()) {
+                for (Object particle : queue) {
+                    if (!particle.getClass().getName().startsWith("pigcart.")) {
+                        continue;
+                    }
+                    String kind = particle.getClass().getSimpleName();
+                    try {
+                        Object data = particle.getClass().getField("data").get(particle);
+                        kind = (String) data.getClass().getField("id").get(data);
+                    } catch (NoSuchFieldException ignored) {
+                        // Not a configurable particle (ripples, streaks): keep the class name.
+                    }
+                    boolean wet = ClientWeather.INSTANCE.precipitation(fieldX.getDouble(particle), fieldZ.getDouble(particle))
+                            >= net.krona.climora.weather.LocalWeather.PRECIPITATION_THRESHOLD;
+                    kinds.computeIfAbsent(kind, key -> new int[2])[wet ? 0 : 1]++;
+                }
+            }
+            StringBuilder line = new StringBuilder();
+            kinds.forEach((kind, count) -> line.append(' ').append(kind).append('=').append(count[0]).append('/').append(count[1]));
+            Climora.LOGGER.info("[Harness] Particle Rain, {}: {} particles; by kind (under precipitation/outside):{}",
+                    when, total, line);
+        } catch (ReflectiveOperationException e) {
+            Climora.LOGGER.info("[Harness] Particle Rain, {}: not installed ({})", when, e.toString());
+        }
     }
 
     /** Snow layers and snow blocks on the surface in a square around a position. */

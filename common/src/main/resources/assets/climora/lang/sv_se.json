@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "skyfall",
   "climora.weather_mode.storm": "åska",
   "climora.weather_mode.freezing_rain": "underkylt regn",
+  "climora.weather_mode.hail": "hagel",
 
   "climora.compass.n": "från N",
   "climora.compass.ne": "från NO",

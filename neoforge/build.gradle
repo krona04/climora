@@ -73,6 +73,14 @@ dependencies {
         renderModsRaw "maven.modrinth:sodium:$rootProject.sodium8_neoforge_version"
     }
 
+    def compat = (project.findProperty('climoraCompat') ?: '').toString().split(',')
+    if ('particlerain' in compat) {
+        renderModsRaw "maven.modrinth:particle-rain:$rootProject.particle_rain_neoforge_version"
+    }
+    if ('soundphysics' in compat) {
+        renderModsRaw "maven.modrinth:sound-physics-remastered:$rootProject.sound_physics_neoforge_version"
+    }
+
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 }

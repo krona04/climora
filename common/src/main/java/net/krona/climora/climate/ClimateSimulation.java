@@ -33,6 +33,8 @@ public final class ClimateSimulation implements WeatherView {
     private final ServerLevel level;
     private final ClimateGrid grid;
     private final SynopticField synoptic;
+    /** Surges of storm updrafts, which decide where and when a storm that can hail does. */
+    private final GradientNoise hailSurges;
     private final SimulationStats stats = new SimulationStats();
     private final LightningSpawner lightning;
     private final List<WeatherOverride> overrides = new ArrayList<>();
@@ -51,6 +53,7 @@ public final class ClimateSimulation implements WeatherView {
         this.level = level;
         this.grid = grid;
         this.synoptic = new SynopticField(level.getSeed());
+        this.hailSurges = new GradientNoise(level.getSeed() ^ 0x4A11L);
         this.lightning = new LightningSpawner(level);
         if (Double.isNaN(grid.weatherTime())) {
             // New data, or data from 0.1: its pressure pattern ran on game time, so continue from there.
@@ -462,7 +465,17 @@ public final class ClimateSimulation implements WeatherView {
                     ? AtmosphereModel.stormTarget(temperature, columnHumidity, lift, precipitation, heating) : 0.0F;
         }
         float storm = ClimateModel.relax(cell.storm(), stormTarget, weatherElapsed, stormTime);
-        float hail = config.hail && config.thunderstorms ? AtmosphereModel.hailTarget(storm, lift, temperature) : 0.0F;
+        float hail = 0.0F;
+        if (config.hail && config.thunderstorms) {
+            if (override != null && override.mode().forcesHail) {
+                hail = temperature > 0.0F ? AtmosphereModel.HAIL_MAX : 0.0F;
+            } else {
+                float surge = AtmosphereModel.hailSurge(hailSurges.sample(cell.cellX() * AtmosphereModel.HAIL_SURGE_PER_CELL,
+                        cell.cellZ() * AtmosphereModel.HAIL_SURGE_PER_CELL, weatherTime / AtmosphereModel.HAIL_SURGE_TICKS));
+                float dayHeat = cell.baseTemperature() + Math.max(0.0F, diurnalRaw);
+                hail = AtmosphereModel.hailTarget(storm, lift, dayHeat, surge);
+            }
+        }
 
         // Air aloft: carried by the wind (above), then slowly takes on the climate of the ground under it.
         float columnTarget = AtmosphereModel.columnEquilibrium(cell.baseTemperature(), precipitation);

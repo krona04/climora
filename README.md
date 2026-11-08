@@ -54,9 +54,9 @@ The result is that weather is **local**. It can rain on one side of a lake and n
 ### 🌧️ Precipitation
 - **Drizzle to Downpour** — Rain looks like its intensity: drizzle is sparse, slow and quiet, a downpour is dense, fast and loud and hides the distance.
 - **Sleet** — Just above freezing, rain and wet snow fall together.
-- **Hail** — The strongest thunderstorms drop ice pellets that shatter on the ground. Hurting players and mobs is a separate option, **off by default**.
+- **Hail** — Rare, as it should be: only the strongest thunderstorms on a hot afternoon drop ice pellets, in short bursts over part of the storm. They shatter on the ground and drum duller on a roof overhead. Hurting players and mobs is a separate option, **off by default**.
 - **Freezing Rain** — When warm air blows in aloft over frozen ground, snow melts on the way down and the drops freeze on whatever they hit. The ground gets a **glaze of ice as slippery as ice** that melts once it warms up. It happens on its own where warm air meets a cold region.
-- **Distant Showers** — A shower in the distance stands as a grey curtain of rain from its cloud to the ground, leaning with the wind. You can watch it come.
+- **Distant Showers** — A shower in the distance stands as a grey curtain of rain from its cloud to the ground, leaning with the wind. You can watch it come, and hear it from its side before it reaches you.
 - **Fog** — On still, humid, clear nights the ground air cools below its dew point and fog settles in the lowlands, then burns off in the morning sun.
 - **Puddles** — Steady rain fills the hollows of natural ground with puddles that join into one sheet of water, dry out after the rain and freeze over in frost.
 - **Grey Skies** — A closed cloud deck greys the sky and hides the sun, not only rain.
@@ -114,7 +114,7 @@ All commands require **permission level 2**.
 
 | Command | Description |
 |---|---|
-| `/climora weather clear\|cloudy\|fog\|drizzle\|rain\|downpour\|storm\|freezing_rain [radius] [seconds]` | Force weather over a radius, measured in cells |
+| `/climora weather clear\|cloudy\|fog\|drizzle\|rain\|downpour\|storm\|freezing_rain\|hail [radius] [seconds]` | Force weather over a radius, measured in cells |
 | `/climora weather auto` | Hand control back to the simulation |
 | `/weather clear\|rain\|thunder` | Vanilla command, redirected to local weather within ~4 km |
 

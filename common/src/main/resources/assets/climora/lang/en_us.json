@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "downpour",
   "climora.weather_mode.storm": "thunderstorm",
   "climora.weather_mode.freezing_rain": "freezing rain",
+  "climora.weather_mode.hail": "hail",
 
   "climora.compass.n": "from the N",
   "climora.compass.ne": "from the NE",

@@ -2,7 +2,19 @@ architectury {
     common rootProject.enabled_platforms.split(',')
 }
 
+repositories {
+    maven {
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+}
+
 dependencies {
+    // Particle Rain: only the classes the compatibility hooks call. Never bundled, never required.
+    // Its NeoForge jar already has Mojang's names, so it needs no remapping (Loom 1.10 refuses its Fabric jar,
+    // built with a newer Loom).
+    compileOnly("maven.modrinth:particle-rain:$rootProject.particle_rain_neoforge_version") { transitive = false }
+
     // We depend on Fabric Loader here to use the Fabric @Environment annotations,
     // which get remapped to the correct annotations on each platform.
     // Do NOT use other classes from Fabric Loader.

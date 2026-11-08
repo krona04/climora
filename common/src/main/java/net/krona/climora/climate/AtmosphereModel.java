@@ -56,15 +56,30 @@ public final class AtmosphereModel {
     // --- Hail (0.2) ---------------------------------------------------------------------------
 
     /**
-     * Hail needs this much storm and this much lift. It also needs air clearly above freezing at the
-     * ground, or the stones arrive as soft graupel; how warm and unstable the air is aloft is already in
-     * the storm intensity.
+     * Hail needs this much storm and this much lift: only the strongest thunderstorms have updrafts that
+     * keep stones aloft long enough to grow. An ordinary thunderstorm rains.
      */
-    public static final float HAIL_MIN_STORM = 0.6F;
-    public static final float HAIL_MIN_LIFT = 0.6F;
-    public static final float HAIL_MIN_TEMPERATURE = 4.0F;
+    public static final float HAIL_MIN_STORM = 0.75F;
+    public static final float HAIL_MIN_LIFT = 0.7F;
+    /**
+     * Heat of the day at which hail becomes possible and at which it is as likely as it gets, °C: how warm the
+     * afternoon would be without the storm. Stones big enough to reach the ground grow in storms fed by a hot
+     * afternoon; a storm on a cool day, or at night, drops rain and soft graupel. The air under the storm
+     * itself is cooled by the rain and says little about what fed it.
+     */
+    public static final float HAIL_MIN_TEMPERATURE = 20.0F;
+    public static final float HAIL_FULL_TEMPERATURE = 28.0F;
     /** Even the strongest storm drops hail at most this hard, 0..1. */
     public static final float HAIL_MAX = 0.8F;
+    /**
+     * The updraft of a storm surges and weakens; hail falls only in its strongest surges. The surge is noise
+     * over cells and weather time: this much weather time per noise unit, ticks, and this much noise per cell.
+     */
+    public static final double HAIL_SURGE_TICKS = 2400.0;
+    public static final double HAIL_SURGE_PER_CELL = 0.7;
+    /** Surge noise, roughly -1..1, at which hail starts and at which it falls at full strength. */
+    public static final float HAIL_SURGE_START = 0.3F;
+    public static final float HAIL_SURGE_FULL = 0.55F;
 
     // --- Fog (0.2) ----------------------------------------------------------------------------
 
@@ -217,13 +232,21 @@ public final class AtmosphereModel {
     }
 
     /**
-     * Hail intensity the cell tends to, 0..HAIL_MAX. Hailstones grow in the strongest updrafts of
-     * thunderstorms, so hail needs a strong storm and strong lift at once, and air above freezing below.
+     * Hail intensity of the cell, 0..HAIL_MAX. Hailstones grow in the strongest updrafts of thunderstorms
+     * fed by a hot afternoon, so hail needs a strong storm, strong lift and the heat of the day at once, and
+     * then falls only in the surges of the updraft ({@link #hailSurge}): in bursts of a minute or two, over
+     * one or two cells of the storm, not from the whole storm all the time.
      */
-    public static float hailTarget(float storm, float lift, float temperature) {
+    public static float hailTarget(float storm, float lift, float dayHeat, float surge) {
         return HAIL_MAX * smoothstep(HAIL_MIN_STORM, 1.0F, storm)
                 * smoothstep(HAIL_MIN_LIFT, 1.0F, lift)
-                * smoothstep(HAIL_MIN_TEMPERATURE, HAIL_MIN_TEMPERATURE + 6.0F, temperature);
+                * smoothstep(HAIL_MIN_TEMPERATURE, HAIL_FULL_TEMPERATURE, dayHeat)
+                * clamp01(surge);
+    }
+
+    /** How strong the updraft surge is, 0..1, from surge noise in roughly -1..1. */
+    public static float hailSurge(double noise) {
+        return smoothstep(HAIL_SURGE_START, HAIL_SURGE_FULL, (float) noise);
     }
 
     /**

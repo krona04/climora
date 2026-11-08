@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "liják",
   "climora.weather_mode.storm": "bouřka",
   "climora.weather_mode.freezing_rain": "mrznoucí déšť",
+  "climora.weather_mode.hail": "kroupy",
 
   "climora.compass.n": "od S",
   "climora.compass.ne": "od SV",

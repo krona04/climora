@@ -85,12 +85,33 @@ class AtmosphereModelTest {
     }
 
     @Test
-    void hailNeedsAStrongStormStrongLiftAndAirAboveFreezing() {
-        assertEquals(AtmosphereModel.HAIL_MAX, AtmosphereModel.hailTarget(1.0F, 1.0F, 20.0F), EPSILON);
-        assertEquals(0.0F, AtmosphereModel.hailTarget(0.5F, 1.0F, 20.0F), EPSILON, "ordinary thunderstorm");
-        assertEquals(0.0F, AtmosphereModel.hailTarget(1.0F, 0.4F, 20.0F), EPSILON, "weak updraft");
-        assertEquals(0.0F, AtmosphereModel.hailTarget(1.0F, 1.0F, 2.0F), EPSILON, "near freezing: graupel");
-        assertTrue(AtmosphereModel.hailTarget(1.0F, 1.0F, 10.0F) > 0.7F, "a cool spring storm still hails");
+    void hailNeedsTheStrongestStormOnAHotAfternoonAndAnUpdraftSurge() {
+        assertEquals(AtmosphereModel.HAIL_MAX, AtmosphereModel.hailTarget(1.0F, 1.0F, 30.0F, 1.0F), EPSILON);
+        assertEquals(0.0F, AtmosphereModel.hailTarget(0.6F, 1.0F, 30.0F, 1.0F), EPSILON, "ordinary thunderstorm");
+        assertEquals(0.0F, AtmosphereModel.hailTarget(1.0F, 0.6F, 30.0F, 1.0F), EPSILON, "weak updraft");
+        assertEquals(0.0F, AtmosphereModel.hailTarget(1.0F, 1.0F, 18.0F, 1.0F), EPSILON, "a storm on a cool day rains");
+        assertEquals(0.0F, AtmosphereModel.hailTarget(1.0F, 1.0F, 30.0F, 0.0F), EPSILON, "between surges");
+        assertTrue(AtmosphereModel.hailTarget(1.0F, 1.0F, 25.0F, 1.0F) > 0.3F, "a hot afternoon storm can hail");
+    }
+
+    @Test
+    void evenAPerfectHailStormHailsOnlyPartOfTheTimeAndPlace() {
+        // The strongest storm on the hottest day: how much of its cells and time get any hail at all.
+        GradientNoise noise = new GradientNoise(20261108L);
+        int samples = 0;
+        int hailing = 0;
+        for (int cell = 0; cell < 40; cell++) {
+            for (int tick = 0; tick < 200_000; tick += 400) {
+                float surge = AtmosphereModel.hailSurge(noise.sample(cell * AtmosphereModel.HAIL_SURGE_PER_CELL, 0.37,
+                        tick / AtmosphereModel.HAIL_SURGE_TICKS));
+                samples++;
+                if (AtmosphereModel.hailTarget(1.0F, 1.0F, 30.0F, surge) >= ClimateSimulation.HAIL_THRESHOLD) {
+                    hailing++;
+                }
+            }
+        }
+        double share = (double) hailing / samples;
+        assertTrue(share > 0.05 && share < 0.3, "hailing share " + share);
     }
 
     @Test

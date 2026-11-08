@@ -155,6 +155,11 @@ public final class ClimoraConfig {
         public boolean distantRain = true;
         /** Fog on still, humid nights and poor visibility in downpours and heavy snow. */
         public boolean weatherFog = true;
+        /**
+         * With Sound Physics Remastered installed: rain and hail echo and are muffled by walls like other sounds.
+         * When false, they sound as in vanilla, which that mod leaves alone.
+         */
+        public boolean weatherSoundPhysics = true;
         /** Look on Modrinth once per launch for a newer release of the mod and say so in chat. */
         public boolean checkForUpdates = true;
         /** On joining a world or a server: a welcome the first time, then a line about supporting the mod on Ko-fi. */

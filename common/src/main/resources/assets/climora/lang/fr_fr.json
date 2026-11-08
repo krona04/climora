@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "averse",
   "climora.weather_mode.storm": "orage",
   "climora.weather_mode.freezing_rain": "pluie verglaçante",
+  "climora.weather_mode.hail": "grêle",
 
   "climora.compass.n": "du nord",
   "climora.compass.ne": "du nord-est",

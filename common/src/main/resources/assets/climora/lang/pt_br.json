@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "aguaceiro",
   "climora.weather_mode.storm": "tempestade",
   "climora.weather_mode.freezing_rain": "chuva congelante",
+  "climora.weather_mode.hail": "granizo",
 
   "climora.compass.n": "do N",
   "climora.compass.ne": "do NE",

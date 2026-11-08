@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "ulewa",
   "climora.weather_mode.storm": "burza",
   "climora.weather_mode.freezing_rain": "marznący deszcz",
+  "climora.weather_mode.hail": "grad",
 
   "climora.compass.n": "z północy",
   "climora.compass.ne": "z północnego wschodu",

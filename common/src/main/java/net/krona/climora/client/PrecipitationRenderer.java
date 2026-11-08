@@ -8,6 +8,8 @@ import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.krona.climora.Climora;
+import net.krona.climora.client.compat.ParticleRainCompat;
+import net.krona.climora.client.compat.SoundPhysicsCompat;
 import net.krona.climora.climate.AtmosphereModel;
 import net.krona.climora.climate.ClimateSimulation;
 import net.krona.climora.config.ClimoraConfig;
@@ -117,6 +119,20 @@ public final class PrecipitationRenderer {
     private static int columnCount;
 
     private static int rainSoundTime;
+    /** Hail intensity from which falling hail, its shards and its sound are at full strength. */
+    private static final float HAIL_FULL_VISIBILITY = 0.45F;
+    /** Splash density at the edge of a shower that has not reached the camera yet, as a rain level. */
+    private static final float EDGE_RAIN_LEVEL = 0.5F;
+    /** Nearby rain is searched on rings this far apart, out to this distance, in this many directions, blocks. */
+    private static final int NEARBY_RAIN_STEP = 8;
+    private static final int NEARBY_RAIN_REACH = 48;
+    private static final int NEARBY_RAIN_DIRECTIONS = 12;
+    /** Nearby rain is played this far from the camera at most, towards the rain, so it is heard from its side. */
+    private static final double NEARBY_RAIN_SOURCE = 6.0;
+    /** How far to either side of that direction it is spread, blocks. */
+    private static final double NEARBY_RAIN_SPREAD = 4.0;
+    /** Deeper below the surface than this, blocks, nearby rain is not heard. */
+    private static final int NEARBY_RAIN_MAX_DEPTH = 16;
     private static int hailSoundTime;
     /** Curtains drawn in the last frame, for the development harness. */
     private static int lastDistantCurtains;
@@ -175,8 +191,13 @@ public final class PrecipitationRenderer {
         if (near) {
             gatherColumns(level, weather, radius, cameraX, cameraY, cameraZ);
             if (columnCount > 0) {
-                renderRain(ticks, partialTick, cameraX, cameraY, cameraZ, windX, windZ);
-                renderSnow(ticks, partialTick, cameraX, cameraY, cameraZ, windX, windZ);
+                // With Particle Rain the falling rain and snow are its particles; hail stays ours.
+                if (!ParticleRainCompat.drawsRain()) {
+                    renderRain(ticks, partialTick, cameraX, cameraY, cameraZ, windX, windZ);
+                }
+                if (!ParticleRainCompat.drawsSnow()) {
+                    renderSnow(ticks, partialTick, cameraX, cameraY, cameraZ, windX, windZ);
+                }
                 renderHail(ticks, partialTick, cameraX, cameraY, cameraZ, windX, windZ);
             }
         }
@@ -344,8 +365,7 @@ public final class PrecipitationRenderer {
             int columnOffset = x * 7919 + z * 104729 & 0xFF;
             float scroll = -(tickOffset + columnOffset + partialTick) / 32.0F * speed % 32.0F;
             float distance = columnDistance[i];
-            float alpha = ((1.0F - distance * distance) * 0.4F + 0.6F)
-                    * AtmosphereModel.smoothstep(ClimateSimulation.HAIL_THRESHOLD, 0.45F, hail);
+            float alpha = ((1.0F - distance * distance) * 0.4F + 0.6F) * hailVisibility(hail);
             float fall = columnTop[i] - columnBottom[i];
             addQuad(builder, i, cameraX, cameraY, cameraZ, shiftPerBlockX * fall, shiftPerBlockZ * fall,
                     random.nextFloat(), columnBottom[i] * 0.25F + scroll, columnTop[i] * 0.25F + scroll,
@@ -517,6 +537,11 @@ public final class PrecipitationRenderer {
         return RandomSource.create(x * x * 3121 + x * 45238971 ^ z * z * 418711 + z * 13761);
     }
 
+    /** How visible falling hail is, 0..1: nearly transparent just above the threshold, solid from 0.45. */
+    private static float hailVisibility(float hail) {
+        return AtmosphereModel.smoothstep(ClimateSimulation.HAIL_THRESHOLD, HAIL_FULL_VISIBILITY, hail);
+    }
+
     /** Share of columns with streaks: sparse in drizzle, every column in steady rain. */
     private static float coverage(float intensity) {
         return MIN_COVERAGE + (1.0F - MIN_COVERAGE)
@@ -594,10 +619,10 @@ public final class PrecipitationRenderer {
 
     private static void tickRain(Minecraft minecraft, ClientLevel level, ClientWeather weather, RandomSource random,
                                  BlockPos cameraPos) {
-        float rain = weather.rainLevel(1.0F) / (Minecraft.useFancyGraphics() ? 1.0F : 2.0F);
-        if (rain <= 0.0F) {
-            return;
-        }
+        // Splashes also where a shower starts a few blocks away while it is still dry over the camera.
+        float rain = Math.max(weather.rainLevel(1.0F),
+                anyPrecipitationNear(weather, cameraPos.getX() + 0.5, cameraPos.getZ() + 0.5, 10) ? EDGE_RAIN_LEVEL : 0.0F);
+        rain /= Minecraft.useFancyGraphics() ? 1.0F : 2.0F;
         BlockPos soundPos = null;
         int attempts = (int) (100.0F * rain * rain) / (minecraft.options.particles().get() == ParticleStatus.DECREASED ? 2 : 1);
 
@@ -612,7 +637,7 @@ public final class PrecipitationRenderer {
                 continue;
             }
             soundPos = top.below();
-            if (minecraft.options.particles().get() == ParticleStatus.MINIMAL) {
+            if (minecraft.options.particles().get() == ParticleStatus.MINIMAL || ParticleRainCompat.replacesSplashes()) {
                 break;
             }
 
@@ -627,33 +652,110 @@ public final class PrecipitationRenderer {
             level.addParticle(particle, soundPos.getX() + offsetX, soundPos.getY() + height, soundPos.getZ() + offsetZ, 0.0, 0.0, 0.0);
         }
 
-        if (soundPos != null && random.nextInt(3) < rainSoundTime++) {
+        if (random.nextInt(3) < rainSoundTime++) {
             rainSoundTime = 0;
-            // Drizzle barely patters; a downpour is several times louder.
-            float intensity = weather.precipitation(soundPos.getX() + 0.5, soundPos.getZ() + 0.5);
-            float loudness = 0.35F + 1.4F * AtmosphereModel.smoothstep(LocalWeather.PRECIPITATION_THRESHOLD, 1.0F, intensity);
-            if (soundPos.getY() > cameraPos.getY() + 1
-                    && level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, cameraPos).getY() > Mth.floor((float) cameraPos.getY())) {
-                level.playLocalSound(soundPos, SoundEvents.WEATHER_RAIN_ABOVE, SoundSource.WEATHER, 0.1F * loudness, 0.5F, false);
+            if (soundPos != null) {
+                playRainAround(level, weather, soundPos, cameraPos);
             } else {
-                level.playLocalSound(soundPos, SoundEvents.WEATHER_RAIN, SoundSource.WEATHER, 0.2F * loudness, 1.0F, false);
+                playNearbyRain(level, weather, random, cameraPos);
             }
         }
+    }
+
+    /** Rain falling within ten blocks: heard where a drop just landed. */
+    private static void playRainAround(ClientLevel level, ClientWeather weather, BlockPos soundPos, BlockPos cameraPos) {
+        float loudness = rainLoudness(weather.precipitation(soundPos.getX() + 0.5, soundPos.getZ() + 0.5));
+        if (SoundPhysicsCompat.spatialWeather()) {
+            // Sound Physics Remastered muffles it behind the roof and the walls itself.
+            level.playLocalSound(soundPos, ClimoraRegistries.SPATIAL_RAIN_SOUND.get(), SoundSource.WEATHER, 0.2F * loudness, 1.0F, false);
+        } else if (soundPos.getY() > cameraPos.getY() + 1 && isCovered(level, cameraPos)) {
+            level.playLocalSound(soundPos, SoundEvents.WEATHER_RAIN_ABOVE, SoundSource.WEATHER, 0.1F * loudness, 0.5F, false);
+        } else {
+            level.playLocalSound(soundPos, SoundEvents.WEATHER_RAIN, SoundSource.WEATHER, 0.2F * loudness, 1.0F, false);
+        }
+    }
+
+    /**
+     * Rain nearby while it is dry over the camera: the nearest rain within {@link #NEARBY_RAIN_REACH} blocks is
+     * heard from its side, quieter the farther it is. Walking towards a shower, you hear it before you are in it.
+     * Not deep underground, where the surface is far above.
+     */
+    private static void playNearbyRain(ClientLevel level, ClientWeather weather, RandomSource random, BlockPos cameraPos) {
+        if (weather.maxPrecipitation() < LocalWeather.PRECIPITATION_THRESHOLD
+                || level.getHeight(Heightmap.Types.MOTION_BLOCKING, cameraPos.getX(), cameraPos.getZ()) - cameraPos.getY() > NEARBY_RAIN_MAX_DEPTH) {
+            return;
+        }
+        double cameraX = cameraPos.getX() + 0.5;
+        double cameraZ = cameraPos.getZ() + 0.5;
+        for (int distance = NEARBY_RAIN_STEP; distance <= NEARBY_RAIN_REACH; distance += NEARBY_RAIN_STEP) {
+            float strongest = 0.0F;
+            double towardsX = 0.0;
+            double towardsZ = 0.0;
+            for (int i = 0; i < NEARBY_RAIN_DIRECTIONS; i++) {
+                double angle = Mth.TWO_PI * i / NEARBY_RAIN_DIRECTIONS;
+                double x = cameraX + Math.cos(angle) * distance;
+                double z = cameraZ + Math.sin(angle) * distance;
+                float intensity = weather.precipitation(x, z);
+                if (intensity < LocalWeather.PRECIPITATION_THRESHOLD || intensity <= strongest) {
+                    continue;
+                }
+                int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING, Mth.floor(x), Mth.floor(z));
+                if (!LocalWeather.precipitationType(weather, x, ground, z).isLiquid()) {
+                    continue;
+                }
+                strongest = intensity;
+                towardsX = Math.cos(angle);
+                towardsZ = Math.sin(angle);
+            }
+            if (strongest > 0.0F) {
+                float fade = 1.0F - AtmosphereModel.smoothstep(NEARBY_RAIN_STEP / 2.0F, NEARBY_RAIN_REACH, distance);
+                float volume = 0.2F * rainLoudness(strongest) * fade;
+                double source = Math.min(distance, NEARBY_RAIN_SOURCE);
+                // Spread sideways, so the rain is a stretch of noise on that side rather than one point.
+                double spread = (random.nextDouble() - 0.5) * 2.0 * NEARBY_RAIN_SPREAD;
+                double x = cameraX + towardsX * source - towardsZ * spread;
+                double z = cameraZ + towardsZ * source + towardsX * spread;
+                if (SoundPhysicsCompat.spatialWeather()) {
+                    level.playLocalSound(x, cameraPos.getY() + 0.5, z, ClimoraRegistries.SPATIAL_RAIN_SOUND.get(), SoundSource.WEATHER,
+                            volume, 1.0F, false);
+                } else {
+                    // Indoors, rain outside sounds dull through the house.
+                    boolean covered = isCovered(level, cameraPos);
+                    level.playLocalSound(x, cameraPos.getY() + 0.5, z, SoundEvents.WEATHER_RAIN, SoundSource.WEATHER,
+                            covered ? volume * 0.5F : volume, covered ? 0.8F : 1.0F, false);
+                }
+                return;
+            }
+        }
+    }
+
+    /** Drizzle barely patters; a downpour is several times louder. */
+    private static float rainLoudness(float intensity) {
+        return (0.35F + 1.4F * AtmosphereModel.smoothstep(LocalWeather.PRECIPITATION_THRESHOLD, 1.0F, intensity))
+                * ParticleRainCompat.rainVolume();
+    }
+
+    /** Something solid above the camera: a roof, a ceiling, the canopy of a tree. */
+    private static boolean isCovered(ClientLevel level, BlockPos cameraPos) {
+        return level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, cameraPos).getY() > Mth.floor((float) cameraPos.getY());
     }
 
     private static void tickHail(Minecraft minecraft, ClientLevel level, ClientWeather weather, RandomSource random,
                                  BlockPos cameraPos) {
         float hail = weather.hail(cameraPos.getX() + 0.5, cameraPos.getZ() + 0.5);
-        if (hail < ClimateSimulation.HAIL_THRESHOLD || minecraft.options.particles().get() == ParticleStatus.MINIMAL) {
+        // Shards and sound only as far as the falling stones can be seen: faint hail at the edge of a hail
+        // shower, which is drawn nearly transparent, must not litter the ground or drum on it.
+        float visibility = hailVisibility(hail);
+        if (visibility <= 0.0F || minecraft.options.particles().get() == ParticleStatus.MINIMAL) {
             return;
         }
-        int attempts = (int) (30.0F * hail) / (minecraft.options.particles().get() == ParticleStatus.DECREASED ? 2 : 1);
+        int attempts = (int) (30.0F * hail * visibility) / (minecraft.options.particles().get() == ParticleStatus.DECREASED ? 2 : 1);
         BlockPos soundPos = null;
         for (int i = 0; i < attempts; i++) {
             BlockPos top = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING,
                     cameraPos.offset(random.nextInt(17) - 8, 0, random.nextInt(17) - 8));
             if (Math.abs(top.getY() - cameraPos.getY()) > 8
-                    || weather.hail(top.getX() + 0.5, top.getZ() + 0.5) < ClimateSimulation.HAIL_THRESHOLD) {
+                    || random.nextFloat() >= hailVisibility(weather.hail(top.getX() + 0.5, top.getZ() + 0.5))) {
                 continue;
             }
             // Snowball shards scatter and fall back: stones shattering on the ground.
@@ -663,8 +765,19 @@ public final class PrecipitationRenderer {
         }
         if (soundPos != null && hailSoundTime++ >= 2) {
             hailSoundTime = 0;
-            level.playLocalSound(soundPos, ClimoraRegistries.HAIL_SOUND.get(), SoundSource.WEATHER,
-                    0.25F + 0.5F * hail, 1.3F + random.nextFloat() * 0.6F, false);
+            float volume = (0.25F + 0.5F * hail) * visibility;
+            float pitch = 1.3F + random.nextFloat() * 0.6F;
+            if (SoundPhysicsCompat.spatialWeather()) {
+                // Sound Physics Remastered muffles it behind the roof and the walls itself.
+                level.playLocalSound(soundPos, ClimoraRegistries.SPATIAL_HAIL_SOUND.get(), SoundSource.WEATHER, volume, pitch, false);
+                return;
+            }
+            // Under a roof the stones drum on it overhead, duller and quieter, as vanilla does for rain.
+            if (soundPos.getY() > cameraPos.getY() + 1 && isCovered(level, cameraPos)) {
+                volume *= 0.5F;
+                pitch *= 0.6F;
+            }
+            level.playLocalSound(soundPos, ClimoraRegistries.HAIL_SOUND.get(), SoundSource.WEATHER, volume, pitch, false);
         }
     }
 }

@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "stortbui",
   "climora.weather_mode.storm": "onweer",
   "climora.weather_mode.freezing_rain": "onderkoelde regen",
+  "climora.weather_mode.hail": "hagel",
 
   "climora.compass.n": "uit het N",
   "climora.compass.ne": "uit het NO",

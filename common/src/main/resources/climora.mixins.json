@@ -1,12 +1,16 @@
 {
   "required": true,
   "package": "net.krona.climora.mixin",
+  "plugin": "net.krona.climora.platform.ClimoraMixinPlugin",
   "compatibilityLevel": "JAVA_21",
   "minVersion": "0.8",
   "client": [
     "client.ClientLevelMixin",
     "client.FogRendererMixin",
-    "client.LevelRendererMixin"
+    "client.LevelRendererMixin",
+    "compat.CustomParticleMixin",
+    "compat.ParticleSpawnerMixin",
+    "compat.SoundRateConfigMixin"
   ],
   "mixins": [
     "LevelMixin",

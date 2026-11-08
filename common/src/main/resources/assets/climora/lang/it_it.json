@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "acquazzone",
   "climora.weather_mode.storm": "temporale",
   "climora.weather_mode.freezing_rain": "pioggia gelata",
+  "climora.weather_mode.hail": "grandine",
 
   "climora.compass.n": "da N",
   "climora.compass.ne": "da NE",

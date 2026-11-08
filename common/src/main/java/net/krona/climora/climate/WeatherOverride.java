@@ -25,12 +25,15 @@ public record WeatherOverride(Mode mode, int centerCellX, int centerCellZ, int r
         DRIZZLE(0.6F, 1.0F, 0.15F, 0.0F, 1.0F, Float.NaN, 1.0F),
         RAIN(1.0F, 1.0F, 0.75F, 0.0F, 1.02F, Float.NaN, 1.0F),
         DOWNPOUR(1.0F, 1.0F, 1.0F, 0.0F, 1.05F, Float.NaN, 1.0F),
+        /** A strong thunderstorm. It hails only if the simulation would let it: a hot afternoon, a strong surge. */
         STORM(1.0F, 1.0F, 1.0F, 1.0F, 1.02F, Float.NaN, 1.0F),
         /**
          * A warm front over cold ground: air aloft is held above +5 °C and several degrees warmer than the
          * ground, so the rain freezes on contact wherever the ground air is below zero.
          */
-        FREEZING_RAIN(1.0F, 1.0F, 0.6F, 0.0F, 1.02F, 6.0F, 1.0F);
+        FREEZING_RAIN(1.0F, 1.0F, 0.6F, 0.0F, 1.02F, 6.0F, 1.0F),
+        /** A thunderstorm with hail at full strength wherever the ground air is above freezing. */
+        HAIL(1.0F, 1.0F, 1.0F, 1.0F, 1.02F, Float.NaN, 1.0F, true);
 
         public final float lift;
         public final float cloudCover;
@@ -44,9 +47,17 @@ public record WeatherOverride(Mode mode, int centerCellX, int centerCellZ, int r
         public final float columnWarming;
         /** Share of the simulated wind that is left. */
         public final float windScale;
+        /** Hail falls at full strength instead of when the storm would make it. */
+        public final boolean forcesHail;
 
         Mode(float lift, float cloudCover, float precipitation, float storm, float humidity, float columnWarming,
              float windScale) {
+            this(lift, cloudCover, precipitation, storm, humidity, columnWarming, windScale, false);
+        }
+
+        Mode(float lift, float cloudCover, float precipitation, float storm, float humidity, float columnWarming,
+             float windScale, boolean forcesHail) {
+            this.forcesHail = forcesHail;
             this.lift = lift;
             this.cloudCover = cloudCover;
             this.precipitation = precipitation;

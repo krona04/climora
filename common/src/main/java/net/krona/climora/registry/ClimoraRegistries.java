@@ -82,6 +82,14 @@ public final class ClimoraRegistries {
 
     public static final RegistrySupplier<SoundEvent> HAIL_SOUND = SOUND_EVENTS.register("weather.hail",
             () -> SoundEvent.createVariableRangeEvent(id("weather.hail")));
+    /**
+     * Rain and hail for Sound Physics Remastered to echo and muffle behind walls: the same sounds as vanilla rain
+     * and {@link #HAIL_SOUND}, under names that mod processes (see {@code SoundPhysicsCompat}).
+     */
+    public static final RegistrySupplier<SoundEvent> SPATIAL_RAIN_SOUND = SOUND_EVENTS.register("weather.rain.spatial",
+            () -> SoundEvent.createVariableRangeEvent(id("weather.rain.spatial")));
+    public static final RegistrySupplier<SoundEvent> SPATIAL_HAIL_SOUND = SOUND_EVENTS.register("weather.hail.spatial",
+            () -> SoundEvent.createVariableRangeEvent(id("weather.hail.spatial")));
 
     /** Climate belts by latitude, for the "Climate belts" world type. */
     public static final RegistrySupplier<MapCodec<LatitudeBelts>> LATITUDE_BELTS =

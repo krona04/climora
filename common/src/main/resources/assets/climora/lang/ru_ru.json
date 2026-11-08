@@ -22,6 +22,7 @@
   "climora.weather_mode.downpour": "ливень",
   "climora.weather_mode.storm": "гроза",
   "climora.weather_mode.freezing_rain": "ледяной дождь",
+  "climora.weather_mode.hail": "град",
 
   "climora.compass.n": "северный",
   "climora.compass.ne": "северо-восточный",
