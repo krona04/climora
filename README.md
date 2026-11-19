@@ -168,4 +168,4 @@ Climora uses the MIT License.
 
 ## Bug reports and suggestions
 
-Found a bug, or is the weather doing something odd? Please open an issue. `.github/ISSUE_TEMPLATE` has templates for bug reports, performance reports, config questions and general feedback.
+Found a bug, or is the weather doing something odd? Please open an issue.
