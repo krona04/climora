@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "risk för %s",
   "commands.climora.forecast.precipitation.likely": "troligen %s",
   "commands.climora.forecast.thunderstorms": "åskväder",
-  "commands.climora.forecast.note": "Lufttrycket följer vädersystemen exakt; regn uppskattas från luften i lovart.",
+  "commands.climora.forecast.note": "Lufttrycket följer vädersystemen exakt. Regn uppskattas från luften i lovart.",
 
   "commands.climora.stats.header": "Klimat i %s (dataversion %s, lokalt väder %s, vädrets hastighet ×%s)",
   "commands.climora.stats.cells": "Celler: %s sparade, %s aktiva, %s väntande, %s i kö för omsampling, stressradie +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alfa) finns (du har %3$s). Klicka för att öppna nedladdningssidan.",
   "climora.support.message": "❤ Gillar du %1$s? Stöd utvecklingen och följ nyheterna på %2$s",
   "climora.support.hover": "Öppna ko-fi.com/krona04",
-  "climora.welcome": "❤ Välkommen till %1$s! Vädret är nu lokalt: regn, snö och åska driver med vinden — håll ögonen på molnen vid horisonten. Nyheter och stöd: %2$s"
+  "climora.welcome": "❤ Välkommen till %1$s! Vädret är nu lokalt: regn, snö och åska driver med vinden, så håll ögonen på molnen vid horisonten. Nyheter och stöd: %2$s"
 }

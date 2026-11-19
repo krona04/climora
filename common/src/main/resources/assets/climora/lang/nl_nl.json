@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "kans op %s",
   "commands.climora.forecast.precipitation.likely": "waarschijnlijk %s",
   "commands.climora.forecast.thunderstorms": "onweersbuien",
-  "commands.climora.forecast.note": "De luchtdruk volgt de weersystemen exact; regen wordt geschat uit de lucht bovenwinds.",
+  "commands.climora.forecast.note": "De luchtdruk volgt de weersystemen exact. Regen wordt geschat uit de lucht bovenwinds.",
 
   "commands.climora.stats.header": "Klimaat van %s (dataversie %s, lokaal weer %s, weersnelheid ×%s)",
   "commands.climora.stats.cells": "Cellen: %s opgeslagen, %s actief, %s wachtend, %s in de wachtrij voor herbemonstering, stressstraal +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alfa) is beschikbaar (jij hebt %3$s). Klik om de downloadpagina te openen.",
   "climora.support.message": "❤ Vind je %1$s leuk? Steun de ontwikkeling en volg het nieuws op %2$s",
   "climora.support.hover": "ko-fi.com/krona04 openen",
-  "climora.welcome": "❤ Welkom bij %1$s! Het weer is nu lokaal: regen, sneeuw en onweer drijven mee met de wind — let op de wolken aan de horizon. Nieuws en steun: %2$s"
+  "climora.welcome": "❤ Welkom bij %1$s! Het weer is nu lokaal: regen, sneeuw en onweer drijven mee met de wind, dus let op de wolken aan de horizon. Nieuws en steun: %2$s"
 }

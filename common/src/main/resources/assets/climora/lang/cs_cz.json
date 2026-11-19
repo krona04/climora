@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "možná %s",
   "commands.climora.forecast.precipitation.likely": "pravděpodobně %s",
   "commands.climora.forecast.thunderstorms": "bouřky",
-  "commands.climora.forecast.note": "Tlak přesně sleduje tlakové útvary; srážky se odhadují ze vzduchu na návětrné straně.",
+  "commands.climora.forecast.note": "Tlak přesně sleduje tlakové útvary. Srážky se odhadují ze vzduchu na návětrné straně.",
 
   "commands.climora.stats.header": "Klima v %s (verze dat %s, místní počasí %s, rychlost počasí ×%s)",
   "commands.climora.stats.cells": "Buňky: uloženo %s, aktivních %s, čeká %s, ve frontě na nové vzorkování %s, zátěžový poloměr +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "Je dostupný %1$s %2$s (alfa) (máte %3$s). Kliknutím otevřete stránku ke stažení.",
   "climora.support.message": "❤ Baví vás %1$s? Podpořte vývoj a sledujte novinky na %2$s",
   "climora.support.hover": "Otevřít ko-fi.com/krona04",
-  "climora.welcome": "❤ Vítejte v %1$s! Počasí je teď místní: déšť, sníh a bouřky putují s větrem — sledujte mraky na obzoru. Novinky a podpora: %2$s"
+  "climora.welcome": "❤ Vítejte v %1$s! Počasí je teď místní: déšť, sníh a bouřky putují s větrem, takže sledujte mraky na obzoru. Novinky a podpora: %2$s"
 }

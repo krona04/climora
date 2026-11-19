@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "%s possible",
   "commands.climora.forecast.precipitation.likely": "%s probable",
   "commands.climora.forecast.thunderstorms": "orages",
-  "commands.climora.forecast.note": "La pression suit exactement les systèmes météo ; les précipitations sont estimées d'après l'air au vent.",
+  "commands.climora.forecast.note": "La pression suit exactement les systèmes météo. Les précipitations sont estimées d'après l'air au vent.",
 
   "commands.climora.stats.header": "Climat de %s (données version %s, météo locale %s, vitesse de la météo ×%s)",
   "commands.climora.stats.cells": "Cellules : %s enregistrées, %s actives, %s en attente, %s à reconstruire, rayon de test +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alpha) est disponible (vous avez la %3$s). Cliquez pour ouvrir la page de téléchargement.",
   "climora.support.message": "❤ Vous aimez %1$s ? Soutenez le développement et suivez les nouvelles sur %2$s",
   "climora.support.hover": "Ouvrir ko-fi.com/krona04",
-  "climora.welcome": "❤ Bienvenue dans %1$s ! La météo est désormais locale : pluie, neige et orages avancent avec le vent — surveillez les nuages à l'horizon. Nouvelles et soutien : %2$s"
+  "climora.welcome": "❤ Bienvenue dans %1$s ! La météo est désormais locale : pluie, neige et orages avancent avec le vent, alors surveillez les nuages à l'horizon. Nouvelles et soutien : %2$s"
 }

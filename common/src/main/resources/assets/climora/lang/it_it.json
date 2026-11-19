@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "possibile %s",
   "commands.climora.forecast.precipitation.likely": "probabile %s",
   "commands.climora.forecast.thunderstorms": "temporali",
-  "commands.climora.forecast.note": "La pressione segue esattamente i sistemi meteo; la pioggia è stimata dall'aria sopravento.",
+  "commands.climora.forecast.note": "La pressione segue esattamente i sistemi meteo. La pioggia è stimata dall'aria sopravento.",
 
   "commands.climora.stats.header": "Clima di %s (versione dati %s, meteo locale %s, velocità meteo ×%s)",
   "commands.climora.stats.cells": "Celle: %s salvate, %s attive, %s in attesa, %s in coda per il ricampionamento, raggio di stress +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alpha) è disponibile (hai la %3$s). Clicca per aprire la pagina di download.",
   "climora.support.message": "❤ Ti piace %1$s? Sostieni lo sviluppo e segui le novità su %2$s",
   "climora.support.hover": "Apri ko-fi.com/krona04",
-  "climora.welcome": "❤ Benvenuto in %1$s! Ora il meteo è locale: pioggia, neve e temporali si spostano col vento — guarda le nuvole all'orizzonte. Novità e supporto: %2$s"
+  "climora.welcome": "❤ Benvenuto in %1$s! Ora il meteo è locale: pioggia, neve e temporali si spostano col vento, quindi guarda le nuvole all'orizzonte. Novità e supporto: %2$s"
 }

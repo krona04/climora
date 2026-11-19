@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "possível %s",
   "commands.climora.forecast.precipitation.likely": "provável %s",
   "commands.climora.forecast.thunderstorms": "trovoadas",
-  "commands.climora.forecast.note": "A pressão segue exatamente os sistemas meteorológicos; a chuva é estimada a partir do ar a barlavento.",
+  "commands.climora.forecast.note": "A pressão segue exatamente os sistemas meteorológicos. A chuva é estimada a partir do ar a barlavento.",
 
   "commands.climora.stats.header": "Clima de %s (versão dos dados %s, tempo local %s, velocidade do tempo ×%s)",
   "commands.climora.stats.cells": "Células: %s guardadas, %s ativas, %s pendentes, %s em fila para nova amostragem, raio de stress +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alpha) está disponível (tem a %3$s). Clique para abrir a página de transferência.",
   "climora.support.message": "❤ Gostas do %1$s? Apoia o desenvolvimento e acompanha as novidades no %2$s",
   "climora.support.hover": "Abrir ko-fi.com/krona04",
-  "climora.welcome": "❤ Bem-vindo ao %1$s! Agora o tempo é local: chuva, neve e trovoadas deslocam-se com o vento — repara nas nuvens no horizonte. Novidades e apoio: %2$s"
+  "climora.welcome": "❤ Bem-vindo ao %1$s! Agora o tempo é local: chuva, neve e trovoadas deslocam-se com o vento, por isso repara nas nuvens no horizonte. Novidades e apoio: %2$s"
 }

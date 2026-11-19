@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "можливий %s",
   "commands.climora.forecast.precipitation.likely": "ймовірний %s",
   "commands.climora.forecast.thunderstorms": "грози",
-  "commands.climora.forecast.note": "Тиск іде за погодними системами точно; опади — оцінка за повітрям з навітряного боку.",
+  "commands.climora.forecast.note": "Тиск іде за погодними системами точно. Опади оцінюються за повітрям з навітряного боку.",
 
   "commands.climora.stats.header": "Клімат %s (дані версії %s, локальна погода %s, швидкість погоди ×%s)",
   "commands.climora.stats.cells": "Клітинки: %s збережено, %s активні, %s чекають створення, %s чекають перебудови, стрес-радіус +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "Вийшла альфа-версія %1$s %2$s (у вас %3$s). Натисніть, щоб відкрити сторінку завантаження.",
   "climora.support.message": "❤ Подобається %1$s? Підтримайте розробку та стежте за новинами на %2$s",
   "climora.support.hover": "Відкрити ko-fi.com/krona04",
-  "climora.welcome": "❤ Ласкаво просимо до %1$s! Погода тепер місцева: дощ, сніг і грози йдуть із вітром — стежте за хмарами на обрії. Новини та підтримка — на %2$s"
+  "climora.welcome": "❤ Ласкаво просимо до %1$s! Погода тепер місцева: дощ, сніг і грози йдуть із вітром, тож стежте за хмарами на обрії. Новини та підтримка: %2$s"
 }

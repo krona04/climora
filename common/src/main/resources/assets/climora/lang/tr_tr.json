@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "%s olabilir",
   "commands.climora.forecast.precipitation.likely": "büyük olasılıkla %s",
   "commands.climora.forecast.thunderstorms": "gök gürültülü fırtınalar",
-  "commands.climora.forecast.note": "Basınç hava sistemlerini tam olarak izler; yağmur, rüzgârın geldiği yöndeki havadan tahmin edilir.",
+  "commands.climora.forecast.note": "Basınç hava sistemlerini tam olarak izler. Yağmur, rüzgârın geldiği yöndeki havadan tahmin edilir.",
 
   "commands.climora.stats.header": "%s iklimi (veri sürümü %s, yerel hava %s, hava hızı ×%s)",
   "commands.climora.stats.cells": "Hücreler: %s kayıtlı, %s etkin, %s bekleyen, %s yeniden örnekleme sırasında, yük yarıçapı +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alfa) çıktı (sizdeki %3$s). İndirme sayfasını açmak için tıklayın.",
   "climora.support.message": "❤ %1$s hoşunuza gitti mi? %2$s üzerinden geliştirmeyi destekleyin ve haberleri takip edin",
   "climora.support.hover": "ko-fi.com/krona04 sayfasını aç",
-  "climora.welcome": "❤ %1$s'ya hoş geldiniz! Hava artık yerel: yağmur, kar ve fırtınalar rüzgârla birlikte ilerler — ufuktaki bulutları izleyin. Haberler ve destek: %2$s"
+  "climora.welcome": "❤ %1$s'ya hoş geldiniz! Hava artık yerel: yağmur, kar ve fırtınalar rüzgârla birlikte ilerler, bu yüzden ufuktaki bulutları izleyin. Haberler ve destek: %2$s"
 }

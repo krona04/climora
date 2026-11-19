@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "%s möglich",
   "commands.climora.forecast.precipitation.likely": "%s wahrscheinlich",
   "commands.climora.forecast.thunderstorms": "Gewitter",
-  "commands.climora.forecast.note": "Der Luftdruck folgt den Wettersystemen genau; Niederschlag ist eine Schätzung aus der Luft auf der Luvseite.",
+  "commands.climora.forecast.note": "Der Luftdruck folgt den Wettersystemen genau. Niederschlag ist eine Schätzung aus der Luft auf der Luvseite.",
 
   "commands.climora.stats.header": "Klima von %s (Datenversion %s, lokales Wetter %s, Wettertempo ×%s)",
   "commands.climora.stats.cells": "Zellen: %s gespeichert, %s aktiv, %s ausstehend, %s zur Neuberechnung, Lasttest-Radius +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alpha) ist verfügbar (installiert: %3$s). Klicke, um die Download-Seite zu öffnen.",
   "climora.support.message": "❤ Gefällt dir %1$s? Unterstütze die Entwicklung und verfolge die Neuigkeiten auf %2$s",
   "climora.support.hover": "ko-fi.com/krona04 öffnen",
-  "climora.welcome": "❤ Willkommen bei %1$s! Das Wetter ist jetzt örtlich: Regen, Schnee und Gewitter ziehen mit dem Wind – achte auf die Wolken am Horizont. Neuigkeiten und Unterstützung: %2$s"
+  "climora.welcome": "❤ Willkommen bei %1$s! Das Wetter ist jetzt örtlich: Regen, Schnee und Gewitter ziehen mit dem Wind, also achte auf die Wolken am Horizont. Neuigkeiten und Unterstützung: %2$s"
 }

@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "mungkin %s",
   "commands.climora.forecast.precipitation.likely": "kemungkinan besar %s",
   "commands.climora.forecast.thunderstorms": "badai petir",
-  "commands.climora.forecast.note": "Tekanan mengikuti sistem cuaca dengan tepat; hujan diperkirakan dari udara di arah datangnya angin.",
+  "commands.climora.forecast.note": "Tekanan mengikuti sistem cuaca dengan tepat. Hujan diperkirakan dari udara di arah datangnya angin.",
 
   "commands.climora.stats.header": "Iklim %s (versi data %s, cuaca lokal %s, kecepatan cuaca ×%s)",
   "commands.climora.stats.cells": "Sel: %s tersimpan, %s aktif, %s tertunda, %s antre untuk dipindai ulang, radius uji beban +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alfa) tersedia (kamu memakai %3$s). Klik untuk membuka halaman unduhan.",
   "climora.support.message": "❤ Suka %1$s? Dukung pengembangan dan ikuti beritanya di %2$s",
   "climora.support.hover": "Buka ko-fi.com/krona04",
-  "climora.welcome": "❤ Selamat datang di %1$s! Cuaca kini lokal: hujan, salju, dan badai bergerak bersama angin — perhatikan awan di cakrawala. Berita dan dukungan: %2$s"
+  "climora.welcome": "❤ Selamat datang di %1$s! Cuaca kini lokal: hujan, salju, dan badai bergerak bersama angin, jadi perhatikan awan di cakrawala. Berita dan dukungan: %2$s"
 }

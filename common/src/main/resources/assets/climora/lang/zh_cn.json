@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "可能有%s",
   "commands.climora.forecast.precipitation.likely": "很可能有%s",
   "commands.climora.forecast.thunderstorms": "雷暴",
-  "commands.climora.forecast.note": "气压严格跟随天气系统；降雨根据上风方向的空气估算。",
+  "commands.climora.forecast.note": "气压严格跟随天气系统。降雨根据上风方向的空气估算。",
 
   "commands.climora.stats.header": "%s 的气候（数据版本 %s，本地天气 %s，天气速度 ×%s）",
   "commands.climora.stats.cells": "单元：已存储 %s，活跃 %s，待处理 %s，待重新采样 %s，压力半径 +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s(内测版)已发布(当前版本 %3$s)。点击打开下载页面。",
   "climora.support.message": "❤ 喜欢 %1$s 吗？在 %2$s 上支持开发并关注最新消息",
   "climora.support.hover": "打开 ko-fi.com/krona04",
-  "climora.welcome": "❤ 欢迎来到 %1$s！现在天气是局地的：雨、雪和雷暴随风移动——留意地平线上的云。新闻与支持：%2$s"
+  "climora.welcome": "❤ 欢迎来到 %1$s！现在天气是局地的：雨、雪和雷暴随风移动，留意地平线上的云。新闻与支持：%2$s"
 }

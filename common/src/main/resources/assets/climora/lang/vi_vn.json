@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "có thể có %s",
   "commands.climora.forecast.precipitation.likely": "nhiều khả năng có %s",
   "commands.climora.forecast.thunderstorms": "dông",
-  "commands.climora.forecast.note": "Áp suất bám đúng theo các hệ thống thời tiết; mưa được ước tính từ không khí ở phía đầu gió.",
+  "commands.climora.forecast.note": "Áp suất bám đúng theo các hệ thống thời tiết. Mưa được ước tính từ không khí ở phía đầu gió.",
 
   "commands.climora.stats.header": "Khí hậu của %s (phiên bản dữ liệu %s, thời tiết cục bộ %s, tốc độ thời tiết ×%s)",
   "commands.climora.stats.cells": "Ô: %s đã lưu, %s đang hoạt động, %s đang chờ, %s chờ lấy mẫu lại, bán kính thử tải +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "Đã có %1$s %2$s (alpha) (bạn đang dùng %3$s). Nhấp để mở trang tải về.",
   "climora.support.message": "❤ Bạn thích %1$s? Hãy ủng hộ phát triển và theo dõi tin tức trên %2$s",
   "climora.support.hover": "Mở ko-fi.com/krona04",
-  "climora.welcome": "❤ Chào mừng đến với %1$s! Giờ đây thời tiết mang tính cục bộ: mưa, tuyết và dông trôi theo gió — hãy để ý những đám mây nơi chân trời. Tin tức và ủng hộ: %2$s"
+  "climora.welcome": "❤ Chào mừng đến với %1$s! Giờ đây thời tiết mang tính cục bộ: mưa, tuyết và dông trôi theo gió, nên hãy để ý những đám mây nơi chân trời. Tin tức và ủng hộ: %2$s"
 }

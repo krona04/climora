@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "可能有%s",
   "commands.climora.forecast.precipitation.likely": "很可能有%s",
   "commands.climora.forecast.thunderstorms": "雷雨",
-  "commands.climora.forecast.note": "氣壓嚴格跟隨天氣系統；降雨根據上風處的空氣估算。",
+  "commands.climora.forecast.note": "氣壓嚴格跟隨天氣系統。降雨根據上風處的空氣估算。",
 
   "commands.climora.stats.header": "%s 的氣候（資料版本 %s，局部天氣 %s，天氣速度 ×%s）",
   "commands.climora.stats.cells": "單元：已儲存 %s，活躍 %s，待處理 %s，待重新取樣 %s，壓力半徑 +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s（預覽版）已推出（你目前是 %3$s）。點擊開啟下載頁面。",
   "climora.support.message": "❤ 喜歡 %1$s 嗎？到 %2$s 支持開發並關注最新消息",
   "climora.support.hover": "開啟 ko-fi.com/krona04",
-  "climora.welcome": "❤ 歡迎來到 %1$s！現在天氣是局部的：雨、雪和雷雨隨風移動——留意地平線上的雲。最新消息與支持：%2$s"
+  "climora.welcome": "❤ 歡迎來到 %1$s！現在天氣是局部的：雨、雪和雷雨隨風移動，留意地平線上的雲。最新消息與支持：%2$s"
 }

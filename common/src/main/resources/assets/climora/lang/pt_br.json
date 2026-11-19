@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "possível %s",
   "commands.climora.forecast.precipitation.likely": "provável %s",
   "commands.climora.forecast.thunderstorms": "tempestades",
-  "commands.climora.forecast.note": "A pressão segue exatamente os sistemas meteorológicos; a chuva é estimada a partir do ar a barlavento.",
+  "commands.climora.forecast.note": "A pressão segue exatamente os sistemas meteorológicos. A chuva é estimada a partir do ar a barlavento.",
 
   "commands.climora.stats.header": "Clima de %s (versão dos dados %s, clima local %s, velocidade do clima ×%s)",
   "commands.climora.stats.cells": "Células: %s armazenadas, %s ativas, %s pendentes, %s na fila para reamostragem, raio de estresse +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "%1$s %2$s (alpha) está disponível (você tem a %3$s). Clique para abrir a página de download.",
   "climora.support.message": "❤ Curtindo o %1$s? Apoie o desenvolvimento e acompanhe as novidades no %2$s",
   "climora.support.hover": "Abrir ko-fi.com/krona04",
-  "climora.welcome": "❤ Bem-vindo ao %1$s! Agora o clima é local: chuva, neve e tempestades se movem com o vento — fique de olho nas nuvens no horizonte. Novidades e apoio: %2$s"
+  "climora.welcome": "❤ Bem-vindo ao %1$s! Agora o clima é local: chuva, neve e tempestades se movem com o vento, então fique de olho nas nuvens no horizonte. Novidades e apoio: %2$s"
 }

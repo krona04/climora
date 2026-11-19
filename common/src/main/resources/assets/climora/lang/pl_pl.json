@@ -76,7 +76,7 @@
   "commands.climora.forecast.precipitation.possible": "możliwy %s",
   "commands.climora.forecast.precipitation.likely": "prawdopodobny %s",
   "commands.climora.forecast.thunderstorms": "burze",
-  "commands.climora.forecast.note": "Ciśnienie podąża dokładnie za układami pogodowymi; opady to szacunek na podstawie powietrza od strony nawietrznej.",
+  "commands.climora.forecast.note": "Ciśnienie podąża dokładnie za układami pogodowymi. Opady to szacunek na podstawie powietrza od strony nawietrznej.",
 
   "commands.climora.stats.header": "Klimat %s (dane w wersji %s, lokalna pogoda %s, tempo pogody ×%s)",
   "commands.climora.stats.cells": "Komórki: %s zapisanych, %s aktywnych, %s czeka na utworzenie, %s czeka na przebudowę, promień testu +%s",
@@ -93,5 +93,5 @@
   "climora.update.available.alpha": "Dostępna jest wersja alpha %1$s: %2$s (masz %3$s). Kliknij, aby otworzyć stronę pobierania.",
   "climora.support.message": "❤ Podoba ci się %1$s? Wesprzyj rozwój i śledź nowości na %2$s",
   "climora.support.hover": "Otwórz ko-fi.com/krona04",
-  "climora.welcome": "❤ Witaj w %1$s! Pogoda jest teraz lokalna: deszcz, śnieg i burze płyną z wiatrem — obserwuj chmury na horyzoncie. Nowości i wsparcie: %2$s"
+  "climora.welcome": "❤ Witaj w %1$s! Pogoda jest teraz lokalna: deszcz, śnieg i burze płyną z wiatrem, więc obserwuj chmury na horyzoncie. Nowości i wsparcie: %2$s"
 }
